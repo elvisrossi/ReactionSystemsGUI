@@ -1,0 +1,39 @@
+[package]
+name = "reaction_systems_gui"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+log = "*"
+eframe = "0.32"
+anyhow = "1"
+serde = { version = "1", optional = true }
+colored = "*"
+lalrpop-util = "*"
+petgraph = ">=0.8"
+egui_node_graph2 = { path = "../egui_node_graph2" }
+petgraph-graphml = "*"
+getrandom = { version = "0.3" }
+layout-rs = "0.1"
+rfd = "*"
+ron = "*"
+# rsprocess = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
+rsprocess = { version = "*", path = "../../ReactionSystems/rsprocess/" }
+assert = { version = "*", path = "../../ReactionSystems/assert/" }
+execution = { version = "*", path = "../../ReactionSystems/execution/" }
+bisimilarity = { version = "*", path = "../../ReactionSystems/bisimilarity/" }
+grammar_separated = { version = "*", path = "../../ReactionSystems/grammar_separated/" }
+
+
+
+[target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "*"
+getrandom = { version = "0.3", features = ["wasm_js"]}
+
+[features]
+default = []
+persistence = ["serde", "egui_node_graph2/persistence", "eframe/persistence"]

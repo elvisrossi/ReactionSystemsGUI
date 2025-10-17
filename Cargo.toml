@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = [ "egui_node_graph2", "reaction_systems_gui", ]
+
+# [reaction_systems_gui.profile.release]
+# opt-level = 2 # fast and small wasm
