@@ -3,7 +3,7 @@
 use eframe::wasm_bindgen::prelude::*;
 use eframe::wasm_bindgen::{self};
 
-use crate::app::NodeGraphExample;
+use crate::app::AppHandle;
 
 #[derive(Clone)]
 #[wasm_bindgen()]
@@ -43,11 +43,11 @@ impl WebHandle {
                 Box::new(|_cc| {
                     #[cfg(feature = "persistence")]
                     {
-                        Ok(Box::new(NodeGraphExample::new(_cc)))
+                        Ok(Box::new(AppHandle::new(_cc)))
                     }
                     #[cfg(not(feature = "persistence"))]
                     {
-                        Ok(Box::<NodeGraphExample>::default())
+                        Ok(Box::<AppHandle>::default())
                     }
                 }),
             )

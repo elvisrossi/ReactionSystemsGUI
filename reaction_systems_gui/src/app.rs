@@ -33,6 +33,8 @@ pub struct NodeData {
 )]
 #[allow(dead_code)]
 pub enum BasicDataType {
+    Error,
+
     String,
     Path,
     System,
@@ -50,8 +52,9 @@ pub enum BasicDataType {
     Context,
     Reactions,
     PositiveSystem,
-
-    Error,
+    Trace,
+    PositiveTrace,
+    PositiveSet,
 }
 
 /// Should reflect `BasicDataType`'s values, holding the data that will be
@@ -63,6 +66,14 @@ pub enum BasicDataType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum BasicValue {
+    SaveString {
+        path:  String,
+        value: String,
+    },
+    Error {
+        value: LayoutJob,
+    },
+
     String {
         value: String,
     },
@@ -115,15 +126,25 @@ pub enum BasicValue {
     PositiveSystem {
         value: rsprocess::system::PositiveSystem,
     },
-
-    SaveString {
-        path:  String,
-        value: String,
+    Trace {
+        value: rsprocess::trace::SlicingTrace<
+                rsprocess::set::Set,
+            rsprocess::reaction::Reaction,
+            rsprocess::system::System
+                >
     },
-    Error {
-        value: LayoutJob,
+    PositiveTrace {
+        value: rsprocess::trace::SlicingTrace<
+                rsprocess::set::PositiveSet,
+            rsprocess::reaction::PositiveReaction,
+            rsprocess::system::PositiveSystem
+                >
+    },
+    PositiveSet {
+        value: rsprocess::set::PositiveSet
     },
 }
+
 
 impl Hash for BasicValue {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -155,7 +176,10 @@ impl Hash for BasicValue {
             Set,
             Context,
             Reactions,
-            PositiveSystem
+            PositiveSystem,
+            Trace,
+            PositiveTrace,
+            PositiveSet
         );
 
         match self {
@@ -206,6 +230,8 @@ pub enum NodeInstruction {
     Set,
     Context,
     Reactions,
+    PositiveSet,
+    ToPositiveSet,
 
     // system instructions
     ComposeSystem,
@@ -235,6 +261,12 @@ pub enum NodeInstruction {
     PositiveLimitFrequency,
     PositiveFastFrequency,
     // PositiveGraph,
+
+    // trace instructions
+    Trace,
+    PositiveTrace,
+    SliceTrace,
+    PositiveSliceTrace,
 }
 
 impl NodeInstruction {
@@ -312,7 +344,18 @@ impl NodeInstruction {
                 vec![("sys", PositiveSystem), ("experiment", Experiment)],
             | Self::PositiveFastFrequency =>
                 vec![("sys", PositiveSystem), ("experiment", Experiment)],
-            // Self::PositiveGraph  => vec![("sys", PositiveSystem)],
+            | Self::Trace =>
+                vec![("sys", System), ("limit", PositiveInt)],
+            | Self::PositiveTrace =>
+                vec![("sys", PositiveSystem), ("limit", PositiveInt)],
+            | Self::SliceTrace =>
+                vec![("trace", Trace), ("marking", Set)],
+            | Self::PositiveSliceTrace =>
+                vec![("trace", PositiveTrace), ("marking", PositiveSet)],
+            | Self::PositiveSet =>
+                vec![("string", String)],
+            | Self::ToPositiveSet =>
+                vec![("value", Set)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -359,6 +402,12 @@ impl NodeInstruction {
             | Self::PositiveFrequency => Some(("out", String)),
             | Self::PositiveLimitFrequency => Some(("out", String)),
             | Self::PositiveFastFrequency => Some(("out", String)),
+            | Self::Trace => Some(("out", Trace)),
+            | Self::PositiveTrace => Some(("out", PositiveTrace)),
+            | Self::SliceTrace => Some(("out", Trace)),
+            | Self::PositiveSliceTrace => Some(("out", PositiveTrace)),
+            | Self::PositiveSet => Some(("out", PositiveSet)),
+            | Self::ToPositiveSet => Some(("out", PositiveSet)),
         };
         res.map(|res| (res.0.to_string(), res.1))
     }
@@ -383,6 +432,9 @@ impl NodeInstruction {
         }
 
         match ty {
+            | BasicDataType::Error =>
+                Box::new(|_: NodeId, _: &mut NodeGraph, _: &str| {}),
+
             | BasicDataType::Path => helper!(Path, String::new()),
             | BasicDataType::String => helper!(String, String::new()),
             | BasicDataType::System =>
@@ -423,9 +475,18 @@ impl NodeInstruction {
                 PositiveSystem,
                 rsprocess::system::PositiveSystem::default()
             ),
-
-            | BasicDataType::Error =>
-                Box::new(|_: NodeId, _: &mut NodeGraph, _: &str| {}),
+            | BasicDataType::Trace => helper!(
+                Trace,
+                rsprocess::trace::SlicingTrace::default()
+            ),
+            | BasicDataType::PositiveTrace => helper!(
+                PositiveTrace,
+                rsprocess::trace::SlicingTrace::default()
+            ),
+            | BasicDataType::PositiveSet => helper!(
+                PositiveSet,
+                rsprocess::set::PositiveSet::default()
+            ),
         }
     }
 
@@ -446,6 +507,9 @@ impl NodeInstruction {
         }
 
         match ty {
+            | BasicDataType::Error =>
+                Box::new(|_: NodeId, _: &mut NodeGraph, _: &str| {}),
+
             | BasicDataType::Path => helper!(Path),
             | BasicDataType::String => helper!(String),
             | BasicDataType::System => helper!(System),
@@ -463,9 +527,9 @@ impl NodeInstruction {
             | BasicDataType::Context => helper!(Context),
             | BasicDataType::Reactions => helper!(Reactions),
             | BasicDataType::PositiveSystem => helper!(PositiveSystem),
-
-            | BasicDataType::Error =>
-                Box::new(|_: NodeId, _: &mut NodeGraph, _: &str| {}),
+            | BasicDataType::Trace => helper!(Trace),
+            | BasicDataType::PositiveTrace => helper!(PositiveTrace),
+            | BasicDataType::PositiveSet => helper!(PositiveSet),
         }
     }
 }
@@ -606,6 +670,8 @@ pub struct GlobalState {
 impl DataTypeTrait<GlobalState> for BasicDataType {
     fn data_type_color(&self, _user_state: &mut GlobalState) -> egui::Color32 {
         match self {
+            | Self::Error => egui::Color32::RED,
+
             | Self::String => egui::Color32::from_rgb(38, 109, 211),
             | Self::Path => egui::Color32::from_rgb(109, 211, 38),
             | Self::System => egui::Color32::from_rgb(238, 207, 109),
@@ -623,13 +689,16 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::Context => egui::Color32::from_rgb(238, 130, 238),
             | Self::Reactions => egui::Color32::from_rgb(218, 112, 214),
             | Self::PositiveSystem => egui::Color32::from_rgb(238, 109, 153),
-
-            | Self::Error => egui::Color32::RED,
+            | Self::Trace => egui::Color32::from_rgb(178, 34, 34),
+            | Self::PositiveTrace => egui::Color32::from_rgb(178, 54, 54),
+            | Self::PositiveSet => egui::Color32::from_rgb(255, 30, 255),
         }
     }
 
     fn name(&self) -> Cow<'_, str> {
         match self {
+            | Self::Error => Cow::Borrowed("error"),
+
             | Self::String => Cow::Borrowed("string"),
             | Self::Path => Cow::Borrowed("path"),
             | Self::System => Cow::Borrowed("system"),
@@ -647,8 +716,9 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::Context => Cow::Borrowed("context"),
             | Self::Reactions => Cow::Borrowed("reactions"),
             | Self::PositiveSystem => Cow::Borrowed("positive system"),
-
-            | Self::Error => Cow::Borrowed("error"),
+            | Self::Trace => Cow::Borrowed("trace"),
+            | Self::PositiveTrace => Cow::Borrowed("positive trace"),
+            | Self::PositiveSet => Cow::Borrowed("positive set"),
         }
     }
 }
@@ -705,6 +775,12 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveFrequency => "Frequency",
             | Self::PositiveLimitFrequency => "Limit Frequency",
             | Self::PositiveFastFrequency => "Fast Frequency",
+            | Self::Trace => "Trace",
+            | Self::PositiveTrace => "Positive Trace",
+            | Self::SliceTrace => "Slice Trace",
+            | Self::PositiveSliceTrace => "Positive Slice Trace",
+            | Self::PositiveSet => "Positive Set",
+            | Self::ToPositiveSet => "Convert to Positive Set",
         })
     }
 
@@ -715,42 +791,48 @@ impl NodeTemplateTrait for NodeInstruction {
     ) -> Vec<&'static str> {
         match self {
             | Self::String
-            | Self::Path
-            | Self::ReadPath
-            | Self::Symbol
-            | Self::SaveString => vec!["String"],
+                | Self::Path
+                | Self::ReadPath
+                | Self::Symbol
+                | Self::SaveString => vec!["String"],
             | Self::System
-            | Self::Statistics
-            | Self::Target
-            | Self::Run
-            | Self::Loop
-            | Self::ComposeSystem
-            | Self::Environment
-            | Self::Set
-            | Self::Context
-            | Self::Reactions => vec!["System"],
+                | Self::Statistics
+                | Self::Target
+                | Self::Run
+                | Self::Loop
+                | Self::ComposeSystem
+                | Self::Environment
+                | Self::Set
+                | Self::Context
+                | Self::Reactions => vec!["System"],
             | Self::Frequency
-            | Self::LimitFrequency
-            | Self::Experiment
-            | Self::FastFrequency => vec!["System", "Frequency"],
+                | Self::LimitFrequency
+                | Self::Experiment
+                | Self::FastFrequency => vec!["System", "Frequency"],
             | Self::BisimilarityKanellakisSmolka
-            | Self::BisimilarityPaigeTarjanNoLabels
-            | Self::BisimilarityPaigeTarjan
-            | Self::GroupFunction => vec!["System", "Bisimilarity"],
+                | Self::BisimilarityPaigeTarjanNoLabels
+                | Self::BisimilarityPaigeTarjan
+                | Self::GroupFunction => vec!["System", "Bisimilarity"],
             | Self::SystemGraph => vec!["System", "Graph"],
             | Self::Dot
-            | Self::DisplayNode
-            | Self::DisplayEdge
-            | Self::ColorNode
-            | Self::ColorEdge
-            | Self::GraphML => vec!["Graph"],
+                | Self::DisplayNode
+                | Self::DisplayEdge
+                | Self::ColorNode
+                | Self::ColorEdge
+                | Self::GraphML => vec!["Graph"],
             | Self::PositiveSystem
-            | Self::PositiveTarget
-            | Self::PositiveRun
-            | Self::PositiveLoop
-            | Self::PositiveFrequency
-            | Self::PositiveLimitFrequency
-            | Self::PositiveFastFrequency => vec!["Positive System"],
+                | Self::PositiveTarget
+                | Self::PositiveRun
+                | Self::PositiveLoop
+                | Self::PositiveFrequency
+                | Self::PositiveLimitFrequency
+                | Self::PositiveFastFrequency
+                | Self::PositiveSet
+                | Self::ToPositiveSet => vec!["Positive System"],
+            | Self::Trace => vec!["Trace", "System"],
+            | Self::PositiveTrace => vec!["Trace", "Positive System"],
+            | Self::SliceTrace
+                | Self::PositiveSliceTrace => vec!["Trace"],
         }
     }
 
@@ -823,6 +905,12 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveFrequency,
             NodeInstruction::PositiveLimitFrequency,
             NodeInstruction::PositiveFastFrequency,
+            NodeInstruction::Trace,
+            NodeInstruction::PositiveTrace,
+            NodeInstruction::SliceTrace,
+            NodeInstruction::PositiveSliceTrace,
+            NodeInstruction::PositiveSet,
+            NodeInstruction::ToPositiveSet,
         ]
     }
 }
@@ -944,6 +1032,21 @@ impl WidgetValueTrait for BasicValue {
                 });
             },
             | BasicValue::PositiveSystem { value: _ } => {
+                ui.horizontal(|ui| {
+                    ui.label(param_name);
+                });
+            },
+            | BasicValue::Trace { value: _ } => {
+                ui.horizontal(|ui| {
+                    ui.label(param_name);
+                });
+            },
+            | BasicValue::PositiveTrace { value: _ } => {
+                ui.horizontal(|ui| {
+                    ui.label(param_name);
+                });
+            },
+            | BasicValue::PositiveSet { value: _ } => {
                 ui.horizontal(|ui| {
                     ui.label(param_name);
                 });
@@ -1249,10 +1352,10 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
                     }
                 },
                 | Err(_) => {
-                    text = get_layout(value, &ng.user_state.translator);
+                    text = get_layout(value, &ng.user_state.translator, ctx);
                 },
                 | Ok(_) => {
-                    text = get_layout(value, &ng.user_state.translator);
+                    text = get_layout(value, &ng.user_state.translator, ctx);
                     {
                         // prepend doesnt exist for layoutjob
                         let new_text = "Could not save invalid value:";
@@ -1281,6 +1384,7 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
                     ctx,
                 ),
                 &ng.user_state.translator,
+                ctx
             );
         },
         | (None, None) => {
@@ -1299,6 +1403,7 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
 fn get_layout(
     value: anyhow::Result<BasicValue>,
     translator: &rsprocess::translator::Translator,
+    ctx: &egui::Context
 ) -> LayoutJob {
     let mut text = LayoutJob::default();
 
@@ -1441,6 +1546,27 @@ fn get_layout(
                 TextFormat {
                     ..Default::default()
                 },
+            ),
+            | BasicValue::Trace { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                TextFormat {
+                    font_id: eframe::egui::TextStyle::Monospace.resolve(&ctx.style()),
+                    ..Default::default()
+                },
+            ),
+            | BasicValue::PositiveTrace { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                TextFormat {
+                    font_id: eframe::egui::TextStyle::Monospace.resolve(&ctx.style()),
+                    ..Default::default()
+                },
+            ),
+            | BasicValue::PositiveSet { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                TextFormat { ..Default::default() },
             ),
         },
         | Err(err) => {

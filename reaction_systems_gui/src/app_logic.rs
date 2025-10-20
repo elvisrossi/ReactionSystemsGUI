@@ -1938,6 +1938,276 @@ fn process_template(
                 | (_, _) => anyhow::bail!("Inputs all wrong"),
             }
         },
+        | NodeInstruction::Trace => {
+            let inputs = graph[node_id].user_data.template.inputs();
+            let input_name_sys = inputs[0].0.clone();
+            let input_name_limit = inputs[1].0.clone();
+
+            let s = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_sys,
+            )?;
+            let limit = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_limit,
+            )?;
+            let hash_inputs = vec![
+                OutputsCache::calculate_hash(&s),
+                OutputsCache::calculate_hash(&limit),
+            ];
+            match (s, limit) {
+                | (BasicValue::System { value: s }, BasicValue::PositiveInt { value: limit }) => {
+                    let trace = if limit == 0 {
+                        match s.slice_trace() {
+                            Ok(t) => t,
+                            Err(e) => anyhow::bail!(e),
+                        }
+                    } else {
+                        match s.slice_trace_limit(limit) {
+                            Ok(t) => t,
+                            Err(e) => anyhow::bail!(e),
+                        }
+                    };
+                    let res = BasicValue::Trace {
+                        value: trace,
+                    };
+                    outputs_cache.populate_output(
+                        graph,
+                        node_id,
+                        output_name,
+                        res,
+                        hash_inputs,
+                    )?;
+                },
+                | (BasicValue::System { value: _ }, _) =>
+                    anyhow::bail!("Not a positive integer"),
+                | (_, BasicValue::PositiveInt { value: _ }) =>
+                    anyhow::bail!("Not a system"),
+                | (_, _) =>
+                    anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveTrace => {
+            let inputs = graph[node_id].user_data.template.inputs();
+            let input_name_sys = inputs[0].0.clone();
+            let input_name_limit = inputs[1].0.clone();
+
+            let s = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_sys,
+            )?;
+            let limit = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_limit,
+            )?;
+            let hash_inputs = vec![
+                OutputsCache::calculate_hash(&s),
+                OutputsCache::calculate_hash(&limit),
+            ];
+            match (s, limit) {
+                | (BasicValue::PositiveSystem { value: s },
+                   BasicValue::PositiveInt { value: limit }) =>
+                {
+                    let trace = if limit == 0 {
+                        match s.slice_trace() {
+                            Ok(t) => t,
+                            Err(e) => anyhow::bail!(e),
+                        }
+                    } else {
+                        match s.slice_trace_limit(limit) {
+                            Ok(t) => t,
+                            Err(e) => anyhow::bail!(e),
+                        }
+                    };
+                    let res = BasicValue::PositiveTrace {
+                        value: trace,
+                    };
+                    outputs_cache.populate_output(
+                        graph,
+                        node_id,
+                        output_name,
+                        res,
+                        hash_inputs,
+                    )?;
+                },
+                | (BasicValue::PositiveSystem { value: _ }, _) =>
+                    anyhow::bail!("Not a positive integer"),
+                | (_, BasicValue::PositiveInt { value: _ }) =>
+                    anyhow::bail!("Not a positive system"),
+                | (_, _) =>
+                    anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::SliceTrace => {
+            let inputs = graph[node_id].user_data.template.inputs();
+            let input_name_sys = inputs[0].0.clone();
+            let input_name_limit = inputs[1].0.clone();
+
+            let trace = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_sys,
+            )?;
+            let set = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_limit,
+            )?;
+            let hash_inputs = vec![
+                OutputsCache::calculate_hash(&trace),
+                OutputsCache::calculate_hash(&set),
+            ];
+            match (trace, set) {
+                | (BasicValue::Trace { value: trace },
+                   BasicValue::Set { value: set }) =>
+                {
+                    let new_trace = match trace.slice(set) {
+                        Ok(t) => t,
+                        Err(e) => anyhow::bail!(e),
+                    };
+
+                    let res = BasicValue::Trace {
+                        value: new_trace,
+                    };
+                    outputs_cache.populate_output(
+                        graph,
+                        node_id,
+                        output_name,
+                        res,
+                        hash_inputs,
+                    )?;
+                },
+                | (BasicValue::Trace { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::Set { value: _ }) =>
+                    anyhow::bail!("Not a trace"),
+                | (_, _) =>
+                    anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveSliceTrace => {
+            let inputs = graph[node_id].user_data.template.inputs();
+            let input_name_sys = inputs[0].0.clone();
+            let input_name_limit = inputs[1].0.clone();
+
+            let trace = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_sys,
+            )?;
+            let set = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name_limit,
+            )?;
+            let hash_inputs = vec![
+                OutputsCache::calculate_hash(&trace),
+                OutputsCache::calculate_hash(&set),
+            ];
+            match (trace, set) {
+                | (BasicValue::PositiveTrace { value: trace },
+                   BasicValue::PositiveSet { value: set }) =>
+                {
+                    let new_trace = match trace.slice(set) {
+                        Ok(t) => t,
+                        Err(e) => anyhow::bail!(e),
+                    };
+
+                    let res = BasicValue::PositiveTrace {
+                        value: new_trace,
+                    };
+                    outputs_cache.populate_output(
+                        graph,
+                        node_id,
+                        output_name,
+                        res,
+                        hash_inputs,
+                    )?;
+                },
+                | (BasicValue::PositiveTrace { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::PositiveSet { value: _ }) =>
+                    anyhow::bail!("Not a trace"),
+                | (_, _) =>
+                    anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveSet => {
+            let input_name = graph[node_id]
+                .user_data
+                .template
+                .inputs()
+                .first()
+                .unwrap()
+                .0
+                .clone();
+            let s = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name,
+            )?;
+            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::grammar::PositiveSetParser::new()
+                    .parse(&mut *translator, &value);
+                let set = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                let res = BasicValue::PositiveSet { value: set };
+                outputs_cache.populate_output(
+                    graph,
+                    node_id,
+                    output_name,
+                    res,
+                    hash_inputs,
+                )?;
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::ToPositiveSet => {
+            let input_name = graph[node_id]
+                .user_data
+                .template
+                .inputs()
+                .first()
+                .unwrap()
+                .0
+                .clone();
+            let s = outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &input_name,
+            )?;
+            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            if let BasicValue::Set { value } = s {
+                let res = BasicValue::PositiveSet {
+                    value: value.to_positive_set(rsprocess::element::IdState::Positive)
+                };
+                outputs_cache.populate_output(
+                    graph,
+                    node_id,
+                    output_name,
+                    res,
+                    hash_inputs,
+                )?;
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        }
     }
     Ok(None)
 }
