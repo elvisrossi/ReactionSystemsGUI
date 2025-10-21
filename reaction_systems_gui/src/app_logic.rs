@@ -27,6 +27,13 @@ pub fn evaluate_node(
 
     let mut to_ret = None;
 
+    #[cfg(debug_assertions)]
+    {
+        if !to_evaluate.is_empty() {
+            println!("evaluating nodes {:?}", to_evaluate);
+        }
+    }
+
     // for each node to evaluate (in the correct order) finds the output and
     // populates the cache
     for node_id in to_evaluate {

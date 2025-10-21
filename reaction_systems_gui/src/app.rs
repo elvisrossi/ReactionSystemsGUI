@@ -649,6 +649,12 @@ impl OutputsCache {
             self.invalidate_cache(&output_id);
         }
     }
+
+    #[allow(dead_code)]
+    pub fn reset_cache(&mut self) {
+        let mut internals = self.internals.write().unwrap();
+        *internals = CacheInternals::default();
+    }
 }
 
 /// The graph 'global' state.
@@ -1251,6 +1257,30 @@ impl eframe::App for AppHandle {
                                     },
                                 }
 
+                                ui.close();
+                            }
+                        });
+                }
+
+                #[cfg(debug_assertions)]
+                {
+                    use eframe::egui::{PopupCloseBehavior, RectAlign};
+
+                    let response = egui::Frame::group(ui.style())
+                        .show(ui, |ui| {
+                            ui.set_max_height(20.);
+                            ui.set_max_width(40.);
+                            ui.vertical_centered(|ui| ui.button("Cache")).inner
+                        })
+                        .inner;
+                    egui::Popup::menu(&response)
+                        .align(RectAlign::BOTTOM_END)
+                        .gap(4.)
+                        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                        .id(egui::Id::new("cache"))
+                        .show(|ui| {
+                            if ui.button("Clear").clicked() {
+                                self.user_state.cache.reset_cache();
                                 ui.close();
                             }
                         });
