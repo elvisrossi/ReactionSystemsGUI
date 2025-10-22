@@ -936,7 +936,10 @@ impl WidgetValueTrait for BasicValue {
         _node_data: &NodeData,
     ) -> Vec<CustomResponse> {
         match self {
+            // Dummy values used to save files, no ui since not needed
             | BasicValue::SaveString { path: _, value: _ } => {},
+            | BasicValue::Error { value: _ } => {},
+
             | BasicValue::String { value } => {
                 ui.label(param_name);
                 ui.horizontal(|ui| {
@@ -965,11 +968,6 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::PositiveInt { value } => {
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(value));
-                });
-            },
-            | BasicValue::Error { value: _ } => {
-                ui.horizontal(|ui| {
-                    ui.label(param_name);
                 });
             },
             | BasicValue::Symbol { value } => {
@@ -1439,32 +1437,26 @@ fn get_layout(
 
     match value {
         | Ok(value) => match value {
+            | BasicValue::SaveString { path, value: _ } => text.append(
+                &format!("Saving to file \"{}\"", path),
+                0., Default::default()
+            ),
             | BasicValue::Error { value } => {
                 text = value;
             },
+
             | BasicValue::Path { value } =>
-                text.append(&value, 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&value, 0., Default::default()),
             | BasicValue::String { value } =>
-                text.append(&value, 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&value, 0., Default::default()),
             | BasicValue::System { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::PositiveInt { value } =>
-                text.append(&format!("{value}"), 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&format!("{value}"), 0., Default::default()),
             | BasicValue::Symbol { value } =>
-                text.append(&value, 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&value, 0., Default::default()),
             | BasicValue::Experiment { value } => {
                 for (weight, set) in value.0.iter().zip(value.1.iter()) {
                     text.append(
@@ -1473,10 +1465,7 @@ fn get_layout(
                             weight,
                             Formatter::from(translator, set)
                         ),
-                        0.,
-                        TextFormat {
-                            ..Default::default()
-                        },
+                        0., Default::default(),
                     )
                 }
             },
@@ -1486,61 +1475,33 @@ fn get_layout(
                     value.node_count(),
                     value.edge_count()
                 ),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::GroupingFunction { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
-            ),
-            | BasicValue::SaveString { path, value: _ } => text.append(
-                &format!("Saving to file \"{}\"", path),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::DisplayNode { value } =>
                 text.append(&format!("{value:?}"), 0., TextFormat {
                     ..Default::default()
                 }),
             | BasicValue::DisplayEdge { value } =>
-                text.append(&format!("{value:?}"), 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&format!("{value:?}"), 0., Default::default()),
             | BasicValue::ColorNode { value } =>
-                text.append(&format!("{value:?}"), 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&format!("{value:?}"), 0., Default::default()),
             | BasicValue::ColorEdge { value } =>
-                text.append(&format!("{value:?}"), 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&format!("{value:?}"), 0., Default::default()),
             | BasicValue::Environment { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::Set { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::Context { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::Reactions { value } => {
                 text.append("(", 0., TextFormat {
@@ -1551,31 +1512,20 @@ fn get_layout(
                     if i.peek().is_some() {
                         text.append(
                             &format!("{}, ", Formatter::from(translator, r)),
-                            0.,
-                            TextFormat {
-                                ..Default::default()
-                            },
+                            0., Default::default(),
                         );
                     } else {
                         text.append(
                             &format!("{}", Formatter::from(translator, r)),
-                            0.,
-                            TextFormat {
-                                ..Default::default()
-                            },
+                            0., Default::default(),
                         );
                     }
                 }
-                text.append(")", 0., TextFormat {
-                    ..Default::default()
-                });
+                text.append(")", 0., Default::default());
             },
             | BasicValue::PositiveSystem { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat {
-                    ..Default::default()
-                },
+                0., Default::default(),
             ),
             | BasicValue::Trace { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
@@ -1595,8 +1545,7 @@ fn get_layout(
             ),
             | BasicValue::PositiveSet { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                TextFormat { ..Default::default() },
+                0., Default::default(),
             ),
         },
         | Err(err) => {

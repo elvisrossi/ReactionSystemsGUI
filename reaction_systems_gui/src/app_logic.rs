@@ -175,21 +175,135 @@ fn process_template(
     to_ret: &mut Option<BasicValue>,
     ctx: &eframe::egui::Context,
 ) -> anyhow::Result<Option<BasicValue>> {
-    match template {
-        | NodeInstruction::String => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
+
+    // macro that builds a tuple of retrieved values from cache
+    // same order as in the definition of the inputs
+    macro_rules! retrieve_from_cache {
+        (@accum (0) -> ($($body:tt)*))
+            => {retrieve_from_cache!(@as_expr ($($body)*))};
+        (@accum (1) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (0) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[0].0.clone())?,))};
+        (@accum (2) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (1) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[1].0.clone())?,))};
+        (@accum (3) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (2) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[2].0.clone())?,))};
+        (@accum (4) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (3) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[3].0.clone())?,))};
+        (@accum (5) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (4) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[4].0.clone())?,))};
+        (@accum (6) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (5) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[5].0.clone())?,))};
+        (@accum (7) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (6) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[6].0.clone())?,))};
+        (@accum (8) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (7) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[7].0.clone())?,))};
+        (@accum (9) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (8) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[8].0.clone())?,))};
+        (@accum (10) -> ($($body:tt)*))
+            => {retrieve_from_cache!(
+                @accum (9) -> ($($body)*
+                              outputs_cache.retrieve_cache_output(
+                                  graph,
+                                  node_id,
+                                  &graph[node_id]
+                                      .user_data
+                                      .template
+                                      .inputs()[9].0.clone())?,))};
+
+        (@as_expr $e:expr) => {$e};
+        [0] => {
+            compile_error!("Macro returns a value or a tuple, supply an integer greater than 0")
+        };
+        [1] => {
+            outputs_cache.retrieve_cache_output(
                 graph,
                 node_id,
-                &input_name,
-            )?;
+                &graph[node_id]
+                    .user_data
+                    .template
+                    .inputs().first().unwrap().0.clone())?
+        };
+        [$n:tt] => {
+            { retrieve_from_cache!(@accum ($n) -> ()) }
+        };
+    }
+
+    match template {
+        | NodeInstruction::String => {
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value: _ } = s {
@@ -206,19 +320,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Path => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -235,24 +338,20 @@ fn process_template(
             }
         },
         | NodeInstruction::ReadPath => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::Path { value } = s {
+                let file = match std::fs::read_to_string(value) {
+                    Ok(f) => f,
+                    Err(e) =>
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_generic_error(e.to_string(), ctx)
+                        }))
+                };
                 let res = BasicValue::String {
-                    value: std::fs::read_to_string(value)?,
+                    value: file
                 };
                 outputs_cache.populate_output(
                     graph,
@@ -266,20 +365,10 @@ fn process_template(
             }
         },
         | NodeInstruction::System => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SystemParser::new()
                     .parse(&mut *translator, &value);
@@ -308,20 +397,10 @@ fn process_template(
             }
         },
         | NodeInstruction::Statistics => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::System { value } = s {
                 let res = BasicValue::String {
                     value: value.statistics(translator),
@@ -338,20 +417,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Target => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -395,20 +462,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Run => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -456,20 +511,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Loop => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -512,19 +555,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Symbol => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Symbol { value };
@@ -540,19 +572,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Frequency => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::System { value } = s {
@@ -579,20 +600,8 @@ fn process_template(
             }
         },
         | NodeInstruction::LimitFrequency => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_experiment = inputs[1].0.clone();
+            let (sys, exp) = retrieve_from_cache![2];
 
-            let sys = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let exp = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_experiment,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&sys),
                 OutputsCache::calculate_hash(&exp),
@@ -634,19 +643,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Experiment => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let value =
@@ -672,20 +670,8 @@ fn process_template(
             }
         },
         | NodeInstruction::FastFrequency => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_experiment = inputs[1].0.clone();
+            let (sys, exp) = retrieve_from_cache![2];
 
-            let sys = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let exp = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_experiment,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&sys),
                 OutputsCache::calculate_hash(&exp),
@@ -728,26 +714,8 @@ fn process_template(
             }
         },
         | NodeInstruction::BisimilarityKanellakisSmolka => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_graph_1 = inputs[0].0.clone();
-            let input_name_graph_2 = inputs[1].0.clone();
-            let input_name_grouping = inputs[2].0.clone();
+            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
 
-            let graph_1 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_1,
-            )?;
-            let graph_2 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_2,
-            )?;
-            let grouping = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_grouping,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&graph_1),
                 OutputsCache::calculate_hash(&graph_2),
@@ -787,19 +755,8 @@ fn process_template(
             }
         },
         | NodeInstruction::GroupFunction => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -830,26 +787,8 @@ fn process_template(
             }
         },
         | NodeInstruction::BisimilarityPaigeTarjanNoLabels => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_graph_1 = inputs[0].0.clone();
-            let input_name_graph_2 = inputs[1].0.clone();
-            let input_name_grouping = inputs[2].0.clone();
+            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
 
-            let graph_1 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_1,
-            )?;
-            let graph_2 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_2,
-            )?;
-            let grouping = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_grouping,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&graph_1),
                 OutputsCache::calculate_hash(&graph_2),
@@ -889,26 +828,8 @@ fn process_template(
             }
         },
         | NodeInstruction::BisimilarityPaigeTarjan => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_graph_1 = inputs[0].0.clone();
-            let input_name_graph_2 = inputs[1].0.clone();
-            let input_name_grouping = inputs[2].0.clone();
+            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
 
-            let graph_1 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_1,
-            )?;
-            let graph_2 = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_graph_2,
-            )?;
-            let grouping = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_grouping,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&graph_1),
                 OutputsCache::calculate_hash(&graph_2),
@@ -951,19 +872,8 @@ fn process_template(
             }
         },
         | NodeInstruction::SystemGraph => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::System { value } = s {
@@ -984,20 +894,8 @@ fn process_template(
             }
         },
         | NodeInstruction::SaveString => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_path = inputs[0].0.clone();
-            let input_string = inputs[1].0.clone();
+            let (path, string) = retrieve_from_cache![2];
 
-            let path = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_path,
-            )?;
-            let string = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_string,
-            )?;
             match (path, string) {
                 | (
                     BasicValue::Path { value: path },
@@ -1017,38 +915,9 @@ fn process_template(
             }
         },
         | NodeInstruction::Dot => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_graph = inputs[0].0.clone();
-            let input_display_node = inputs[1].0.clone();
-            let input_display_edge = inputs[2].0.clone();
-            let input_color_node = inputs[3].0.clone();
-            let input_color_edge = inputs[4].0.clone();
+            let (input_graph, display_node, display_edge, color_node, color_edge) =
+                retrieve_from_cache![5];
 
-            let input_graph = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_graph,
-            )?;
-            let display_node = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_display_node,
-            )?;
-            let display_edge = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_display_edge,
-            )?;
-            let color_node = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_color_node,
-            )?;
-            let color_edge = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_color_edge,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&input_graph),
                 OutputsCache::calculate_hash(&display_node),
@@ -1116,19 +985,8 @@ fn process_template(
             }
         },
         | NodeInstruction::DisplayNode => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -1160,19 +1018,8 @@ fn process_template(
             }
         },
         | NodeInstruction::DisplayEdge => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -1204,19 +1051,8 @@ fn process_template(
             }
         },
         | NodeInstruction::ColorNode => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -1248,19 +1084,8 @@ fn process_template(
             }
         },
         | NodeInstruction::ColorEdge => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::String { value } = s {
@@ -1292,26 +1117,8 @@ fn process_template(
             }
         },
         | NodeInstruction::GraphML => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_graph = inputs[0].0.clone();
-            let input_display_node = inputs[1].0.clone();
-            let input_display_edge = inputs[2].0.clone();
+            let (input_graph, display_node, display_edge) = retrieve_from_cache![3];
 
-            let input_graph = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_graph,
-            )?;
-            let display_node = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_display_node,
-            )?;
-            let display_edge = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_display_edge,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&input_graph),
                 OutputsCache::calculate_hash(&display_node),
@@ -1359,29 +1166,9 @@ fn process_template(
             }
         },
         | NodeInstruction::ComposeSystem => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_env = inputs[0].0.clone();
-            let input_initial_etities = inputs[1].0.clone();
-            let input_context = inputs[2].0.clone();
-            let input_reactions = inputs[3].0.clone();
+            let (input_env, input_initial_etities, input_context, input_reactions)
+                = retrieve_from_cache![4];
 
-            let input_env = outputs_cache
-                .retrieve_cache_output(graph, node_id, &input_env)?;
-            let input_initial_etities = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_initial_etities,
-            )?;
-            let input_context = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_context,
-            )?;
-            let input_reactions = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_reactions,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&input_env),
                 OutputsCache::calculate_hash(&input_initial_etities),
@@ -1423,20 +1210,10 @@ fn process_template(
             }
         },
         | NodeInstruction::Environment => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::EnvironmentParser::new()
                     .parse(&mut *translator, &value);
@@ -1465,20 +1242,10 @@ fn process_template(
             }
         },
         | NodeInstruction::Set => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SetParser::new()
                     .parse(&mut *translator, &value);
@@ -1507,20 +1274,10 @@ fn process_template(
             }
         },
         | NodeInstruction::Context => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ContextParser::new()
                     .parse(&mut *translator, &value);
@@ -1549,20 +1306,10 @@ fn process_template(
             }
         },
         | NodeInstruction::Reactions => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ReactionsParser::new()
                     .parse(&mut *translator, &value);
@@ -1591,19 +1338,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveSystem => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::System { value } = s {
@@ -1622,20 +1358,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveTarget => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -1679,20 +1403,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveRun => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -1740,20 +1452,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveLoop => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_int = inputs[1].0.clone();
+            let (s, i) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let i = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_int,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&i),
@@ -1796,19 +1496,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveFrequency => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
 
             if let BasicValue::PositiveSystem { value } = s {
@@ -1833,20 +1522,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveLimitFrequency => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_experiment = inputs[1].0.clone();
+            let (sys, exp) = retrieve_from_cache![2];
 
-            let sys = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let exp = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_experiment,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&sys),
                 OutputsCache::calculate_hash(&exp),
@@ -1889,20 +1566,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveFastFrequency => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_experiment = inputs[1].0.clone();
+            let (sys, exp) = retrieve_from_cache![2];
 
-            let sys = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let exp = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_experiment,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&sys),
                 OutputsCache::calculate_hash(&exp),
@@ -1946,20 +1611,8 @@ fn process_template(
             }
         },
         | NodeInstruction::Trace => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_limit = inputs[1].0.clone();
+            let (s, limit) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let limit = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_limit,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&limit),
@@ -1997,20 +1650,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveTrace => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_limit = inputs[1].0.clone();
+            let (s, limit) = retrieve_from_cache![2];
 
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let limit = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_limit,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&s),
                 OutputsCache::calculate_hash(&limit),
@@ -2050,20 +1691,8 @@ fn process_template(
             }
         },
         | NodeInstruction::SliceTrace => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_limit = inputs[1].0.clone();
+            let (trace, set) = retrieve_from_cache![2];
 
-            let trace = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let set = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_limit,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&trace),
                 OutputsCache::calculate_hash(&set),
@@ -2097,20 +1726,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveSliceTrace => {
-            let inputs = graph[node_id].user_data.template.inputs();
-            let input_name_sys = inputs[0].0.clone();
-            let input_name_limit = inputs[1].0.clone();
+            let (trace, set) = retrieve_from_cache![2];
 
-            let trace = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_sys,
-            )?;
-            let set = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name_limit,
-            )?;
             let hash_inputs = vec![
                 OutputsCache::calculate_hash(&trace),
                 OutputsCache::calculate_hash(&set),
@@ -2144,19 +1761,8 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveSet => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveSetParser::new()
@@ -2186,20 +1792,10 @@ fn process_template(
             }
         },
         | NodeInstruction::ToPositiveSet => {
-            let input_name = graph[node_id]
-                .user_data
-                .template
-                .inputs()
-                .first()
-                .unwrap()
-                .0
-                .clone();
-            let s = outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &input_name,
-            )?;
+            let s = retrieve_from_cache![1];
+
             let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+
             if let BasicValue::Set { value } = s {
                 let res = BasicValue::PositiveSet {
                     value: value.to_positive_set(rsprocess::element::IdState::Positive)
