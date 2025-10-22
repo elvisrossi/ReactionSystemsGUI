@@ -538,6 +538,7 @@ pub enum CustomResponse {
     SetActiveNode(NodeId),
     ClearActiveNode,
     SaveToFile(NodeId),
+    FieldModified,
 }
 
 #[derive(Default, Debug)]
@@ -549,6 +550,7 @@ struct CacheInternals {
     values:      HashMap<OutputId, BasicValue>,
     hash_values: HashMap<OutputId, u64>,
     hash_inputs: HashMap<OutputId, (u64, Vec<u64>)>,
+    last_output: Option<LayoutJob>,
 }
 
 /// Cache used to save intermediate values between executions.
@@ -650,6 +652,21 @@ impl OutputsCache {
     pub fn reset_cache(&mut self) {
         let mut internals = self.internals.write().unwrap();
         *internals = CacheInternals::default();
+    }
+
+    pub fn get_last_state(&self) -> Option<LayoutJob> {
+        let internals = self.internals.read().unwrap();
+        internals.last_output.clone()
+    }
+
+    pub fn invalidate_last_state(&mut self) {
+        let mut internals = self.internals.write().unwrap();
+        internals.last_output = None;
+    }
+
+    pub fn set_last_state(&mut self, val: LayoutJob) {
+        let mut internals = self.internals.write().unwrap();
+        internals.last_output = Some(val);
     }
 }
 
@@ -930,6 +947,8 @@ impl WidgetValueTrait for BasicValue {
         _user_state: &mut GlobalState,
         _node_data: &NodeData,
     ) -> Vec<CustomResponse> {
+        let mut responses = vec![];
+
         match self {
             // Dummy values used to save files, no ui since not needed
             | BasicValue::SaveString { path: _, value: _ } => {},
@@ -938,21 +957,27 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::String { value } => {
                 ui.label(param_name);
                 ui.horizontal(|ui| {
-                    ui.add(
+                    let field = ui.add(
                         egui::TextEdit::multiline(value)
                             .hint_text("String here")
                             .clip_text(false),
                     );
+                    if field.changed() {
+                        responses.push(CustomResponse::FieldModified);
+                    }
                 });
             },
             | BasicValue::Path { value } => {
                 ui.label(param_name);
                 ui.horizontal(|ui| {
-                    ui.add(
+                    let field = ui.add(
                         egui::TextEdit::multiline(value)
                             .hint_text("Path here")
                             .clip_text(false),
                     );
+                    if field.changed() {
+                        responses.push(CustomResponse::FieldModified);
+                    }
                 });
             },
             | BasicValue::System { value: _ } => {
@@ -968,11 +993,14 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::Symbol { value } => {
                 ui.label(param_name);
                 ui.horizontal(|ui| {
-                    ui.add(
+                    let field = ui.add(
                         egui::TextEdit::singleline(value)
                             .hint_text("Symbol here")
                             .clip_text(false),
                     );
+                    if field.changed() {
+                        responses.push(CustomResponse::FieldModified);
+                    }
                 });
             },
             | BasicValue::Experiment { value: _ } => {
@@ -1051,8 +1079,8 @@ impl WidgetValueTrait for BasicValue {
                 });
             },
         }
-        // Custom response (not used currently).
-        Vec::new()
+
+        responses
     }
 }
 
@@ -1075,20 +1103,12 @@ impl NodeDataTrait for NodeData {
     where
         CustomResponse: UserResponseTrait,
     {
-        // This logic is entirely up to the user. In this case, we check if the
-        // current node we're drawing is the active one, by comparing against
-        // the value stored in the global user state, and draw different button
-        // UIs based on that.
         let mut responses = vec![];
         let is_active = user_state
             .active_node
             .map(|id| id == node_id)
             .unwrap_or(false);
 
-        // Pressing the button will emit a custom user response to either set,
-        // or clear the active node. These responses do nothing by themselves,
-        // the library only makes the responses available to you after the graph
-        // has been drawn. See below at the update method for an example.
         match (is_active, graph[node_id].user_data.template) {
             | (_, NodeInstruction::SaveString) => {
                 if ui.button("Write").clicked() {
@@ -1293,37 +1313,58 @@ impl eframe::App for AppHandle {
             })
             .inner;
 
-        for node_response in graph_response.node_responses {
+        for node_response in graph_response.node_responses.iter() {
             // graph events
             match node_response {
                 | NodeResponse::User(CustomResponse::SetActiveNode(node)) => {
-                    self.user_state.active_node = Some(node);
+                    self.user_state.active_node = Some(*node);
                     self.user_state.display_result = true;
+                    self.user_state.cache.invalidate_last_state();
                 },
                 | NodeResponse::User(CustomResponse::ClearActiveNode) => {
                     self.user_state.active_node = None;
                     self.user_state.display_result = false;
+                    self.user_state.cache.invalidate_last_state();
                 },
                 | NodeResponse::User(CustomResponse::SaveToFile(node)) => {
-                    self.user_state.save_node = Some(node);
+                    self.user_state.save_node = Some(*node);
                     self.user_state.display_result = true;
+                    self.user_state.cache.invalidate_last_state();
                 },
                 | NodeResponse::DisconnectEvent { output, input: _ } => {
-                    self.user_state.cache.invalidate_cache(&output);
+                    self.user_state.cache.invalidate_cache(output);
                 },
                 | NodeResponse::ConnectEventEnded {
                     output,
                     input: _,
                     input_hook: _,
                 } => {
-                    self.user_state.cache.invalidate_cache(&output);
+                    self.user_state.cache.invalidate_cache(output);
                 },
                 | _ => {},
             }
         }
 
         if self.user_state.display_result {
-            let text = create_output(self, ctx);
+            let text = {
+                if !graph_response.node_responses.is_empty() {
+                    let computed_output = create_output(self, ctx);
+                    self.user_state
+                        .cache
+                        .set_last_state(computed_output.clone());
+                    computed_output
+                } else if let Some(pre_computed) =
+                    self.user_state.cache.get_last_state()
+                {
+                    pre_computed
+                } else {
+                    let computed_output = create_output(self, ctx);
+                    self.user_state
+                        .cache
+                        .set_last_state(computed_output.clone());
+                    computed_output
+                }
+            };
 
             let window = egui::SidePanel::right("Results").resizable(true);
 

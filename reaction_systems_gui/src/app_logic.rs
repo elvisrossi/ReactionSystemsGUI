@@ -184,105 +184,94 @@ fn process_template(
             => {retrieve_from_cache!(@as_expr ($($body)*))};
         (@accum (1) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (0) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (0) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[0].0.clone())?,))};
+                                      .inputs()[0].0.clone())?, $($body)*))};
         (@accum (2) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (1) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (1) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[1].0.clone())?,))};
+                                      .inputs()[1].0.clone())?, $($body)*))};
         (@accum (3) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (2) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (2) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[2].0.clone())?,))};
+                                      .inputs()[2].0.clone())?, $($body)*))};
         (@accum (4) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (3) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (3) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[3].0.clone())?,))};
+                                      .inputs()[3].0.clone())?, $($body)*))};
         (@accum (5) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (4) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (4) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[4].0.clone())?,))};
+                                      .inputs()[4].0.clone())?, $($body)*))};
         (@accum (6) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (5) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (5) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[5].0.clone())?,))};
+                                      .inputs()[5].0.clone())?, $($body)*))};
         (@accum (7) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (6) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (6) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[6].0.clone())?,))};
+                                      .inputs()[6].0.clone())?, $($body)*))};
         (@accum (8) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (7) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (7) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[7].0.clone())?,))};
+                                      .inputs()[7].0.clone())?, $($body)*))};
         (@accum (9) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (8) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (8) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[8].0.clone())?,))};
+                                      .inputs()[8].0.clone())?, $($body)*))};
         (@accum (10) -> ($($body:tt)*))
             => {retrieve_from_cache!(
-                @accum (9) -> ($($body)*
-                              outputs_cache.retrieve_cache_output(
+                @accum (9) -> (outputs_cache.retrieve_cache_output(
                                   graph,
                                   node_id,
                                   &graph[node_id]
                                       .user_data
                                       .template
-                                      .inputs()[9].0.clone())?,))};
-
+                                      .inputs()[9].0.clone())?, $($body)*))};
         (@as_expr $e:expr) => {$e};
         [0] => {
             compile_error!("Macro returns a value or a tuple, supply an \
@@ -895,6 +884,7 @@ fn process_template(
                 color_node,
                 color_edge,
             ) = retrieve_from_cache![5];
+
             let hash_inputs = hash_inputs!(
                 input_graph,
                 display_node,
