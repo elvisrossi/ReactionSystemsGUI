@@ -128,23 +128,22 @@ pub enum BasicValue {
     },
     Trace {
         value: rsprocess::trace::SlicingTrace<
-                rsprocess::set::Set,
+            rsprocess::set::Set,
             rsprocess::reaction::Reaction,
-            rsprocess::system::System
-                >
+            rsprocess::system::System,
+        >,
     },
     PositiveTrace {
         value: rsprocess::trace::SlicingTrace<
-                rsprocess::set::PositiveSet,
+            rsprocess::set::PositiveSet,
             rsprocess::reaction::PositiveReaction,
-            rsprocess::system::PositiveSystem
-                >
+            rsprocess::system::PositiveSystem,
+        >,
     },
     PositiveSet {
-        value: rsprocess::set::PositiveSet
+        value: rsprocess::set::PositiveSet,
     },
 }
-
 
 impl Hash for BasicValue {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -344,18 +343,14 @@ impl NodeInstruction {
                 vec![("sys", PositiveSystem), ("experiment", Experiment)],
             | Self::PositiveFastFrequency =>
                 vec![("sys", PositiveSystem), ("experiment", Experiment)],
-            | Self::Trace =>
-                vec![("sys", System), ("limit", PositiveInt)],
+            | Self::Trace => vec![("sys", System), ("limit", PositiveInt)],
             | Self::PositiveTrace =>
                 vec![("sys", PositiveSystem), ("limit", PositiveInt)],
-            | Self::SliceTrace =>
-                vec![("trace", Trace), ("marking", Set)],
+            | Self::SliceTrace => vec![("trace", Trace), ("marking", Set)],
             | Self::PositiveSliceTrace =>
                 vec![("trace", PositiveTrace), ("marking", PositiveSet)],
-            | Self::PositiveSet =>
-                vec![("string", String)],
-            | Self::ToPositiveSet =>
-                vec![("value", Set)],
+            | Self::PositiveSet => vec![("string", String)],
+            | Self::ToPositiveSet => vec![("value", Set)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -418,16 +413,18 @@ impl NodeInstruction {
     ) -> Box<dyn Fn(NodeId, &mut NodeGraph, &str)> {
         macro_rules! helper {
             ($name: ident, $def: expr) => {
-                Box::new(|node_id: NodeId, graph: &mut NodeGraph, name: &str| {
-                    graph.add_input_param(
-                        node_id,
-                        name.to_string(),
-                        BasicDataType::$name,
-                        BasicValue::$name { value: $def },
-                        InputParamKind::ConnectionOrConstant,
-                        true,
-                    );
-                })
+                Box::new(
+                    |node_id: NodeId, graph: &mut NodeGraph, name: &str| {
+                        graph.add_input_param(
+                            node_id,
+                            name.to_string(),
+                            BasicDataType::$name,
+                            BasicValue::$name { value: $def },
+                            InputParamKind::ConnectionOrConstant,
+                            true,
+                        );
+                    },
+                )
             };
         }
 
@@ -441,7 +438,8 @@ impl NodeInstruction {
                 helper!(System, rsprocess::system::System::default()),
             | BasicDataType::PositiveInt => helper!(PositiveInt, 1),
             | BasicDataType::Symbol => helper!(Symbol, "*".into()),
-            | BasicDataType::Experiment => helper!(Experiment, (vec![], vec![])),
+            | BasicDataType::Experiment =>
+                helper!(Experiment, (vec![], vec![])),
             | BasicDataType::Graph => helper!(Graph, petgraph::Graph::new()),
             | BasicDataType::GroupingFunction =>
                 helper!(GroupingFunction, assert::relabel::Assert::default()),
@@ -467,7 +465,8 @@ impl NodeInstruction {
                 Environment,
                 rsprocess::environment::Environment::default()
             ),
-            | BasicDataType::Set => helper!(Set, rsprocess::set::Set::default()),
+            | BasicDataType::Set =>
+                helper!(Set, rsprocess::set::Set::default()),
             | BasicDataType::Context =>
                 helper!(Context, rsprocess::process::Process::default()),
             | BasicDataType::Reactions => helper!(Reactions, vec![]),
@@ -475,18 +474,14 @@ impl NodeInstruction {
                 PositiveSystem,
                 rsprocess::system::PositiveSystem::default()
             ),
-            | BasicDataType::Trace => helper!(
-                Trace,
-                rsprocess::trace::SlicingTrace::default()
-            ),
+            | BasicDataType::Trace =>
+                helper!(Trace, rsprocess::trace::SlicingTrace::default()),
             | BasicDataType::PositiveTrace => helper!(
                 PositiveTrace,
                 rsprocess::trace::SlicingTrace::default()
             ),
-            | BasicDataType::PositiveSet => helper!(
-                PositiveSet,
-                rsprocess::set::PositiveSet::default()
-            ),
+            | BasicDataType::PositiveSet =>
+                helper!(PositiveSet, rsprocess::set::PositiveSet::default()),
         }
     }
 
@@ -496,13 +491,15 @@ impl NodeInstruction {
     ) -> Box<dyn Fn(NodeId, &mut NodeGraph, &str)> {
         macro_rules! helper {
             ($name: ident) => {
-                Box::new(|node_id: NodeId, graph: &mut NodeGraph, name: &str| {
-                    graph.add_output_param(
-                        node_id,
-                        name.to_string(),
-                        BasicDataType::$name,
-                    );
-                })
+                Box::new(
+                    |node_id: NodeId, graph: &mut NodeGraph, name: &str| {
+                        graph.add_output_param(
+                            node_id,
+                            name.to_string(),
+                            BasicDataType::$name,
+                        );
+                    },
+                )
             };
         }
 
@@ -542,7 +539,6 @@ pub enum CustomResponse {
     ClearActiveNode,
     SaveToFile(NodeId),
 }
-
 
 #[derive(Default, Debug)]
 #[cfg_attr(
@@ -797,48 +793,47 @@ impl NodeTemplateTrait for NodeInstruction {
     ) -> Vec<&'static str> {
         match self {
             | Self::String
-                | Self::Path
-                | Self::ReadPath
-                | Self::Symbol
-                | Self::SaveString => vec!["String"],
+            | Self::Path
+            | Self::ReadPath
+            | Self::Symbol
+            | Self::SaveString => vec!["String"],
             | Self::System
-                | Self::Statistics
-                | Self::Target
-                | Self::Run
-                | Self::Loop
-                | Self::ComposeSystem
-                | Self::Environment
-                | Self::Set
-                | Self::Context
-                | Self::Reactions => vec!["System"],
+            | Self::Statistics
+            | Self::Target
+            | Self::Run
+            | Self::Loop
+            | Self::ComposeSystem
+            | Self::Environment
+            | Self::Set
+            | Self::Context
+            | Self::Reactions => vec!["System"],
             | Self::Frequency
-                | Self::LimitFrequency
-                | Self::Experiment
-                | Self::FastFrequency => vec!["System", "Frequency"],
+            | Self::LimitFrequency
+            | Self::Experiment
+            | Self::FastFrequency => vec!["System", "Frequency"],
             | Self::BisimilarityKanellakisSmolka
-                | Self::BisimilarityPaigeTarjanNoLabels
-                | Self::BisimilarityPaigeTarjan
-                | Self::GroupFunction => vec!["System", "Bisimilarity"],
+            | Self::BisimilarityPaigeTarjanNoLabels
+            | Self::BisimilarityPaigeTarjan
+            | Self::GroupFunction => vec!["System", "Bisimilarity"],
             | Self::SystemGraph => vec!["System", "Graph"],
             | Self::Dot
-                | Self::DisplayNode
-                | Self::DisplayEdge
-                | Self::ColorNode
-                | Self::ColorEdge
-                | Self::GraphML => vec!["Graph"],
+            | Self::DisplayNode
+            | Self::DisplayEdge
+            | Self::ColorNode
+            | Self::ColorEdge
+            | Self::GraphML => vec!["Graph"],
             | Self::PositiveSystem
-                | Self::PositiveTarget
-                | Self::PositiveRun
-                | Self::PositiveLoop
-                | Self::PositiveFrequency
-                | Self::PositiveLimitFrequency
-                | Self::PositiveFastFrequency
-                | Self::PositiveSet
-                | Self::ToPositiveSet => vec!["Positive System"],
+            | Self::PositiveTarget
+            | Self::PositiveRun
+            | Self::PositiveLoop
+            | Self::PositiveFrequency
+            | Self::PositiveLimitFrequency
+            | Self::PositiveFastFrequency
+            | Self::PositiveSet
+            | Self::ToPositiveSet => vec!["Positive System"],
             | Self::Trace => vec!["Trace", "System"],
             | Self::PositiveTrace => vec!["Trace", "Positive System"],
-            | Self::SliceTrace
-                | Self::PositiveSliceTrace => vec!["Trace"],
+            | Self::SliceTrace | Self::PositiveSliceTrace => vec!["Trace"],
         }
     }
 
@@ -1097,9 +1092,9 @@ impl NodeDataTrait for NodeData {
         match (is_active, graph[node_id].user_data.template) {
             | (_, NodeInstruction::SaveString) => {
                 if ui.button("Write").clicked() {
-                    responses.push(NodeResponse::User(CustomResponse::SaveToFile(
-                        node_id,
-                    )));
+                    responses.push(NodeResponse::User(
+                        CustomResponse::SaveToFile(node_id),
+                    ));
                 }
             },
             | (true, _) => {
@@ -1108,8 +1103,9 @@ impl NodeDataTrait for NodeData {
                 )
                 .fill(egui::Color32::GOLD);
                 if ui.add(button).clicked() {
-                    responses
-                        .push(NodeResponse::User(CustomResponse::ClearActiveNode));
+                    responses.push(NodeResponse::User(
+                        CustomResponse::ClearActiveNode,
+                    ));
                 }
             },
             | (false, _) =>
@@ -1412,7 +1408,7 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
                     ctx,
                 ),
                 &ng.user_state.translator,
-                ctx
+                ctx,
             );
         },
         | (None, None) => {
@@ -1431,7 +1427,7 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
 fn get_layout(
     value: anyhow::Result<BasicValue>,
     translator: &rsprocess::translator::Translator,
-    ctx: &egui::Context
+    ctx: &egui::Context,
 ) -> LayoutJob {
     let mut text = LayoutJob::default();
 
@@ -1439,7 +1435,8 @@ fn get_layout(
         | Ok(value) => match value {
             | BasicValue::SaveString { path, value: _ } => text.append(
                 &format!("Saving to file \"{}\"", path),
-                0., Default::default()
+                0.,
+                Default::default(),
             ),
             | BasicValue::Error { value } => {
                 text = value;
@@ -1451,7 +1448,8 @@ fn get_layout(
                 text.append(&value, 0., Default::default()),
             | BasicValue::System { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::PositiveInt { value } =>
                 text.append(&format!("{value}"), 0., Default::default()),
@@ -1465,7 +1463,8 @@ fn get_layout(
                             weight,
                             Formatter::from(translator, set)
                         ),
-                        0., Default::default(),
+                        0.,
+                        Default::default(),
                     )
                 }
             },
@@ -1475,11 +1474,13 @@ fn get_layout(
                     value.node_count(),
                     value.edge_count()
                 ),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::GroupingFunction { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::DisplayNode { value } =>
                 text.append(&format!("{value:?}"), 0., TextFormat {
@@ -1493,15 +1494,18 @@ fn get_layout(
                 text.append(&format!("{value:?}"), 0., Default::default()),
             | BasicValue::Environment { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::Set { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::Context { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::Reactions { value } => {
                 text.append("(", 0., TextFormat {
@@ -1512,12 +1516,14 @@ fn get_layout(
                     if i.peek().is_some() {
                         text.append(
                             &format!("{}, ", Formatter::from(translator, r)),
-                            0., Default::default(),
+                            0.,
+                            Default::default(),
                         );
                     } else {
                         text.append(
                             &format!("{}", Formatter::from(translator, r)),
-                            0., Default::default(),
+                            0.,
+                            Default::default(),
                         );
                     }
                 }
@@ -1525,13 +1531,15 @@ fn get_layout(
             },
             | BasicValue::PositiveSystem { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::Trace { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
                 0.,
                 TextFormat {
-                    font_id: eframe::egui::TextStyle::Monospace.resolve(&ctx.style()),
+                    font_id: eframe::egui::TextStyle::Monospace
+                        .resolve(&ctx.style()),
                     ..Default::default()
                 },
             ),
@@ -1539,13 +1547,15 @@ fn get_layout(
                 &format!("{}", Formatter::from(translator, &value)),
                 0.,
                 TextFormat {
-                    font_id: eframe::egui::TextStyle::Monospace.resolve(&ctx.style()),
+                    font_id: eframe::egui::TextStyle::Monospace
+                        .resolve(&ctx.style()),
                     ..Default::default()
                 },
             ),
             | BasicValue::PositiveSet { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
         },
         | Err(err) => {

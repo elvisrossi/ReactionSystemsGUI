@@ -7,7 +7,7 @@ use rsprocess::system::{ExtensionsSystem, LoopSystem};
 use rsprocess::translator::Formatter;
 
 use crate::app::{
-    BasicDataType, NodeData, NodeInstruction, BasicValue, OutputsCache,
+    BasicDataType, BasicValue, NodeData, NodeInstruction, OutputsCache,
 };
 use crate::helper;
 
@@ -164,6 +164,8 @@ fn generate_to_evaluate(
     Ok(res)
 }
 
+// -----------------------------------------------------------------------------
+
 #[allow(clippy::too_many_arguments)]
 fn process_template(
     graph: &MyGraph,
@@ -175,7 +177,6 @@ fn process_template(
     to_ret: &mut Option<BasicValue>,
     ctx: &eframe::egui::Context,
 ) -> anyhow::Result<Option<BasicValue>> {
-
     // macro that builds a tuple of retrieved values from cache
     // same order as in the definition of the inputs
     macro_rules! retrieve_from_cache {
@@ -284,7 +285,8 @@ fn process_template(
 
         (@as_expr $e:expr) => {$e};
         [0] => {
-            compile_error!("Macro returns a value or a tuple, supply an integer greater than 0")
+            compile_error!("Macro returns a value or a tuple, supply an \
+                            integer greater than 0")
         };
         [1] => {
             outputs_cache.retrieve_cache_output(
@@ -300,11 +302,15 @@ fn process_template(
         };
     }
 
+    // creates a vector of the hash of the inputs
+    macro_rules! hash_inputs {
+        ($($i:ident),*) => (vec![$(OutputsCache::calculate_hash(&$i)),*]);
+    }
+
     match template {
         | NodeInstruction::String => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value: _ } = s {
                 let res = s;
@@ -321,8 +327,7 @@ fn process_template(
         },
         | NodeInstruction::Path => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Path { value };
@@ -339,20 +344,20 @@ fn process_template(
         },
         | NodeInstruction::ReadPath => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::Path { value } = s {
                 let file = match std::fs::read_to_string(value) {
-                    Ok(f) => f,
-                    Err(e) =>
+                    | Ok(f) => f,
+                    | Err(e) =>
                         return Ok(Some(BasicValue::Error {
-                            value: helper::reformat_generic_error(e.to_string(), ctx)
-                        }))
+                            value: helper::reformat_generic_error(
+                                e.to_string(),
+                                ctx,
+                            ),
+                        })),
                 };
-                let res = BasicValue::String {
-                    value: file
-                };
+                let res = BasicValue::String { value: file };
                 outputs_cache.populate_output(
                     graph,
                     node_id,
@@ -366,8 +371,7 @@ fn process_template(
         },
         | NodeInstruction::System => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SystemParser::new()
@@ -398,8 +402,7 @@ fn process_template(
         },
         | NodeInstruction::Statistics => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::System { value } = s {
                 let res = BasicValue::String {
@@ -418,11 +421,8 @@ fn process_template(
         },
         | NodeInstruction::Target => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::System { value: s },
@@ -463,11 +463,8 @@ fn process_template(
         },
         | NodeInstruction::Run => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::System { value: s },
@@ -512,11 +509,8 @@ fn process_template(
         },
         | NodeInstruction::Loop => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::System { value: sys },
@@ -556,8 +550,8 @@ fn process_template(
         },
         | NodeInstruction::Symbol => {
             let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
 
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Symbol { value };
                 outputs_cache.populate_output(
@@ -573,8 +567,7 @@ fn process_template(
         },
         | NodeInstruction::Frequency => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::System { value } = s {
                 let res = match rsprocess::frequency::Frequency::naive_frequency(
@@ -601,11 +594,8 @@ fn process_template(
         },
         | NodeInstruction::LimitFrequency => {
             let (sys, exp) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, exp);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&sys),
-                OutputsCache::calculate_hash(&exp),
-            ];
             match (sys, exp) {
                 | (
                     BasicValue::System { value: sys },
@@ -644,8 +634,8 @@ fn process_template(
         },
         | NodeInstruction::Experiment => {
             let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
 
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let value =
                     match grammar_separated::grammar::ExperimentParser::new()
@@ -671,11 +661,8 @@ fn process_template(
         },
         | NodeInstruction::FastFrequency => {
             let (sys, exp) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, exp);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&sys),
-                OutputsCache::calculate_hash(&exp),
-            ];
             match (sys, exp) {
                 | (
                     BasicValue::System { value: sys },
@@ -715,12 +702,8 @@ fn process_template(
         },
         | NodeInstruction::BisimilarityKanellakisSmolka => {
             let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&graph_1),
-                OutputsCache::calculate_hash(&graph_2),
-                OutputsCache::calculate_hash(&grouping),
-            ];
             match (graph_1, graph_2, grouping) {
                 | (
                     BasicValue::Graph { value: graph_1 },
@@ -756,8 +739,7 @@ fn process_template(
         },
         | NodeInstruction::GroupFunction => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::assert::AssertParser::new()
@@ -788,12 +770,8 @@ fn process_template(
         },
         | NodeInstruction::BisimilarityPaigeTarjanNoLabels => {
             let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&graph_1),
-                OutputsCache::calculate_hash(&graph_2),
-                OutputsCache::calculate_hash(&grouping),
-            ];
             match (graph_1, graph_2, grouping) {
                 | (
                     BasicValue::Graph { value: graph_1 },
@@ -829,12 +807,8 @@ fn process_template(
         },
         | NodeInstruction::BisimilarityPaigeTarjan => {
             let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&graph_1),
-                OutputsCache::calculate_hash(&graph_2),
-                OutputsCache::calculate_hash(&grouping),
-            ];
             match (graph_1, graph_2, grouping) {
                 | (
                     BasicValue::Graph { value: graph_1 },
@@ -873,8 +847,7 @@ fn process_template(
         },
         | NodeInstruction::SystemGraph => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::System { value } = s {
                 let value = match value.digraph() {
@@ -915,16 +888,21 @@ fn process_template(
             }
         },
         | NodeInstruction::Dot => {
-            let (input_graph, display_node, display_edge, color_node, color_edge) =
-                retrieve_from_cache![5];
+            let (
+                input_graph,
+                display_node,
+                display_edge,
+                color_node,
+                color_edge,
+            ) = retrieve_from_cache![5];
+            let hash_inputs = hash_inputs!(
+                input_graph,
+                display_node,
+                display_edge,
+                color_node,
+                color_edge
+            );
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&input_graph),
-                OutputsCache::calculate_hash(&display_node),
-                OutputsCache::calculate_hash(&display_edge),
-                OutputsCache::calculate_hash(&color_node),
-                OutputsCache::calculate_hash(&color_edge),
-            ];
             match (
                 input_graph,
                 display_node,
@@ -986,8 +964,7 @@ fn process_template(
         },
         | NodeInstruction::DisplayNode => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res =
@@ -1019,8 +996,7 @@ fn process_template(
         },
         | NodeInstruction::DisplayEdge => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res =
@@ -1052,8 +1028,7 @@ fn process_template(
         },
         | NodeInstruction::ColorNode => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res =
@@ -1085,8 +1060,7 @@ fn process_template(
         },
         | NodeInstruction::ColorEdge => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res =
@@ -1117,13 +1091,11 @@ fn process_template(
             }
         },
         | NodeInstruction::GraphML => {
-            let (input_graph, display_node, display_edge) = retrieve_from_cache![3];
+            let (input_graph, display_node, display_edge) =
+                retrieve_from_cache![3];
+            let hash_inputs =
+                hash_inputs!(input_graph, display_node, display_edge);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&input_graph),
-                OutputsCache::calculate_hash(&display_node),
-                OutputsCache::calculate_hash(&display_edge),
-            ];
             match (input_graph, display_node, display_edge) {
                 | (
                     BasicValue::Graph { value: input_graph },
@@ -1166,15 +1138,18 @@ fn process_template(
             }
         },
         | NodeInstruction::ComposeSystem => {
-            let (input_env, input_initial_etities, input_context, input_reactions)
-                = retrieve_from_cache![4];
-
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&input_env),
-                OutputsCache::calculate_hash(&input_initial_etities),
-                OutputsCache::calculate_hash(&input_context),
-                OutputsCache::calculate_hash(&input_reactions),
-            ];
+            let (
+                input_env,
+                input_initial_etities,
+                input_context,
+                input_reactions,
+            ) = retrieve_from_cache![4];
+            let hash_inputs = hash_inputs!(
+                input_env,
+                input_initial_etities,
+                input_context,
+                input_reactions
+            );
 
             match (
                 input_env,
@@ -1211,8 +1186,7 @@ fn process_template(
         },
         | NodeInstruction::Environment => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::EnvironmentParser::new()
@@ -1243,8 +1217,7 @@ fn process_template(
         },
         | NodeInstruction::Set => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SetParser::new()
@@ -1275,8 +1248,7 @@ fn process_template(
         },
         | NodeInstruction::Context => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ContextParser::new()
@@ -1307,8 +1279,7 @@ fn process_template(
         },
         | NodeInstruction::Reactions => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ReactionsParser::new()
@@ -1339,8 +1310,7 @@ fn process_template(
         },
         | NodeInstruction::PositiveSystem => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::System { value } = s {
                 let res = BasicValue::PositiveSystem {
@@ -1359,11 +1329,8 @@ fn process_template(
         },
         | NodeInstruction::PositiveTarget => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::PositiveSystem { value: s },
@@ -1404,11 +1371,8 @@ fn process_template(
         },
         | NodeInstruction::PositiveRun => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::PositiveSystem { value: s },
@@ -1453,11 +1417,8 @@ fn process_template(
         },
         | NodeInstruction::PositiveLoop => {
             let (s, i) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, i);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&i),
-            ];
             match (s, i) {
                 | (
                     BasicValue::PositiveSystem { value: sys },
@@ -1497,8 +1458,7 @@ fn process_template(
         },
         | NodeInstruction::PositiveFrequency => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::PositiveSystem { value } = s {
                 let res = match rsprocess::frequency::PositiveFrequency::naive_frequency(&value) {
@@ -1523,11 +1483,8 @@ fn process_template(
         },
         | NodeInstruction::PositiveLimitFrequency => {
             let (sys, exp) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, exp);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&sys),
-                OutputsCache::calculate_hash(&exp),
-            ];
             match (sys, exp) {
                 | (
                     BasicValue::PositiveSystem { value: sys },
@@ -1567,11 +1524,8 @@ fn process_template(
         },
         | NodeInstruction::PositiveFastFrequency => {
             let (sys, exp) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, exp);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&sys),
-                OutputsCache::calculate_hash(&exp),
-            ];
             match (sys, exp) {
                 | (
                     BasicValue::PositiveSystem { value: sys },
@@ -1612,27 +1566,25 @@ fn process_template(
         },
         | NodeInstruction::Trace => {
             let (s, limit) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, limit);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&limit),
-            ];
             match (s, limit) {
-                | (BasicValue::System { value: s }, BasicValue::PositiveInt { value: limit }) => {
+                | (
+                    BasicValue::System { value: s },
+                    BasicValue::PositiveInt { value: limit },
+                ) => {
                     let trace = if limit == 0 {
                         match s.slice_trace() {
-                            Ok(t) => t,
-                            Err(e) => anyhow::bail!(e),
+                            | Ok(t) => t,
+                            | Err(e) => anyhow::bail!(e),
                         }
                     } else {
                         match s.slice_trace_limit(limit) {
-                            Ok(t) => t,
-                            Err(e) => anyhow::bail!(e),
+                            | Ok(t) => t,
+                            | Err(e) => anyhow::bail!(e),
                         }
                     };
-                    let res = BasicValue::Trace {
-                        value: trace,
-                    };
+                    let res = BasicValue::Trace { value: trace };
                     outputs_cache.populate_output(
                         graph,
                         node_id,
@@ -1645,35 +1597,30 @@ fn process_template(
                     anyhow::bail!("Not a positive integer"),
                 | (_, BasicValue::PositiveInt { value: _ }) =>
                     anyhow::bail!("Not a system"),
-                | (_, _) =>
-                    anyhow::bail!("Inputs all wrong"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
             }
         },
         | NodeInstruction::PositiveTrace => {
             let (s, limit) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(s, limit);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&s),
-                OutputsCache::calculate_hash(&limit),
-            ];
             match (s, limit) {
-                | (BasicValue::PositiveSystem { value: s },
-                   BasicValue::PositiveInt { value: limit }) =>
-                {
+                | (
+                    BasicValue::PositiveSystem { value: s },
+                    BasicValue::PositiveInt { value: limit },
+                ) => {
                     let trace = if limit == 0 {
                         match s.slice_trace() {
-                            Ok(t) => t,
-                            Err(e) => anyhow::bail!(e),
+                            | Ok(t) => t,
+                            | Err(e) => anyhow::bail!(e),
                         }
                     } else {
                         match s.slice_trace_limit(limit) {
-                            Ok(t) => t,
-                            Err(e) => anyhow::bail!(e),
+                            | Ok(t) => t,
+                            | Err(e) => anyhow::bail!(e),
                         }
                     };
-                    let res = BasicValue::PositiveTrace {
-                        value: trace,
-                    };
+                    let res = BasicValue::PositiveTrace { value: trace };
                     outputs_cache.populate_output(
                         graph,
                         node_id,
@@ -1686,29 +1633,24 @@ fn process_template(
                     anyhow::bail!("Not a positive integer"),
                 | (_, BasicValue::PositiveInt { value: _ }) =>
                     anyhow::bail!("Not a positive system"),
-                | (_, _) =>
-                    anyhow::bail!("Inputs all wrong"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
             }
         },
         | NodeInstruction::SliceTrace => {
             let (trace, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(trace, set);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&trace),
-                OutputsCache::calculate_hash(&set),
-            ];
             match (trace, set) {
-                | (BasicValue::Trace { value: trace },
-                   BasicValue::Set { value: set }) =>
-                {
+                | (
+                    BasicValue::Trace { value: trace },
+                    BasicValue::Set { value: set },
+                ) => {
                     let new_trace = match trace.slice(set) {
-                        Ok(t) => t,
-                        Err(e) => anyhow::bail!(e),
+                        | Ok(t) => t,
+                        | Err(e) => anyhow::bail!(e),
                     };
 
-                    let res = BasicValue::Trace {
-                        value: new_trace,
-                    };
+                    let res = BasicValue::Trace { value: new_trace };
                     outputs_cache.populate_output(
                         graph,
                         node_id,
@@ -1721,29 +1663,24 @@ fn process_template(
                     anyhow::bail!("Not a set"),
                 | (_, BasicValue::Set { value: _ }) =>
                     anyhow::bail!("Not a trace"),
-                | (_, _) =>
-                    anyhow::bail!("Inputs all wrong"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
             }
         },
         | NodeInstruction::PositiveSliceTrace => {
             let (trace, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(trace, set);
 
-            let hash_inputs = vec![
-                OutputsCache::calculate_hash(&trace),
-                OutputsCache::calculate_hash(&set),
-            ];
             match (trace, set) {
-                | (BasicValue::PositiveTrace { value: trace },
-                   BasicValue::PositiveSet { value: set }) =>
-                {
+                | (
+                    BasicValue::PositiveTrace { value: trace },
+                    BasicValue::PositiveSet { value: set },
+                ) => {
                     let new_trace = match trace.slice(set) {
-                        Ok(t) => t,
-                        Err(e) => anyhow::bail!(e),
+                        | Ok(t) => t,
+                        | Err(e) => anyhow::bail!(e),
                     };
 
-                    let res = BasicValue::PositiveTrace {
-                        value: new_trace,
-                    };
+                    let res = BasicValue::PositiveTrace { value: new_trace };
                     outputs_cache.populate_output(
                         graph,
                         node_id,
@@ -1756,14 +1693,13 @@ fn process_template(
                     anyhow::bail!("Not a set"),
                 | (_, BasicValue::PositiveSet { value: _ }) =>
                     anyhow::bail!("Not a trace"),
-                | (_, _) =>
-                    anyhow::bail!("Inputs all wrong"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
             }
         },
         | NodeInstruction::PositiveSet => {
             let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
 
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveSetParser::new()
                     .parse(&mut *translator, &value);
@@ -1793,12 +1729,12 @@ fn process_template(
         },
         | NodeInstruction::ToPositiveSet => {
             let s = retrieve_from_cache![1];
-
-            let hash_inputs = vec![OutputsCache::calculate_hash(&s)];
+            let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::Set { value } = s {
                 let res = BasicValue::PositiveSet {
-                    value: value.to_positive_set(rsprocess::element::IdState::Positive)
+                    value: value
+                        .to_positive_set(rsprocess::element::IdState::Positive),
                 };
                 outputs_cache.populate_output(
                     graph,
@@ -1810,7 +1746,7 @@ fn process_template(
             } else {
                 anyhow::bail!("Not a string");
             }
-        }
+        },
     }
     Ok(None)
 }

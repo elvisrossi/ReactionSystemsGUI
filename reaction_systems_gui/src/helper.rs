@@ -165,15 +165,11 @@ where
 pub fn reformat_generic_error(
     e: impl Into<String>,
     _ctx: &eframe::egui::Context,
-) -> LayoutJob
-{
+) -> LayoutJob {
     let text_format = TextFormat {
         font_id: Default::default(),
         color: Color32::RED,
         ..Default::default()
     };
-    LayoutJob::single_section(
-        e.into(),
-        text_format
-    )
+    LayoutJob::single_section(e.into(), text_format)
 }
