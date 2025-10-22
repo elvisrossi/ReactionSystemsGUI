@@ -20,17 +20,11 @@ getrandom = "0.3" # dependency that has to be specified correctly for wasm
 layout-rs = "0.1"
 rfd = "*" # for file selection
 ron = "*" # for serialization
-# rsprocess = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
-# assert = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
-# execution = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
-# bisimilarity = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
-# grammar_separated = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
-
-rsprocess = { version = "*", path = "../../ReactionSystems/rsprocess/" }
-assert = { version = "*", path = "../../ReactionSystems/assert/" }
-execution = { version = "*", path = "../../ReactionSystems/execution/" }
-bisimilarity = { version = "*", path = "../../ReactionSystems/bisimilarity/" }
-grammar_separated = { version = "*", path = "../../ReactionSystems/grammar_separated/" }
+rsprocess = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
+assert = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
+execution = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
+bisimilarity = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
+grammar_separated = { version = "*", git = "https://tautocrono.it/elvis/ReactionSystems.git" }
 
 
 [target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies]
