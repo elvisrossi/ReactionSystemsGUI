@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use egui_node_graph2::*;
 use rsprocess::frequency::BasicFrequency;
-use rsprocess::system::{ExtensionsSystem, LoopSystem};
+use rsprocess::system::{BasicSystem, ExtensionsSystem, LoopSystem};
 use rsprocess::translator::Formatter;
 
 use crate::app::{
@@ -38,19 +38,22 @@ pub fn evaluate_node(
     // populates the cache
     for node_id in to_evaluate {
         let node = &graph[node_id];
-        let output_name = graph[node_id]
+        let outputs = graph[node_id]
             .user_data
             .template
-            .output()
-            .unwrap_or(("".into(), BasicDataType::Error))
-            .0;
+            .output();
+        let output_names =
+            outputs
+            .iter()
+            .map(|el| el.0.as_str())
+            .collect::<Vec<_>>();
 
         match process_template(
             graph,
             node_id,
             outputs_cache,
             &node.user_data.template,
-            &output_name,
+            output_names,
             translator,
             &mut to_ret,
             ctx,
@@ -67,7 +70,8 @@ pub fn evaluate_node(
             .user_data
             .template
             .output()
-            .map(|el| el.0)
+            .first()
+            .map(|el| el.0.clone())
             .unwrap_or("".into());
         let output_id = graph[node_id].get_output(&output_field)?;
 
@@ -172,7 +176,7 @@ fn process_template(
     node_id: NodeId,
     outputs_cache: &OutputsCache,
     template: &NodeInstruction,
-    output_name: &str,
+    output_names: Vec<&str>,
     translator: &mut rsprocess::translator::Translator,
     to_ret: &mut Option<BasicValue>,
     ctx: &eframe::egui::Context,
@@ -180,6 +184,22 @@ fn process_template(
     // macro that builds a tuple of retrieved values from cache
     // same order as in the definition of the inputs
     macro_rules! retrieve_from_cache {
+        [0] => {
+            compile_error!("Macro returns a value or a tuple, supply an \
+                            integer greater than 0")
+        };
+        [1] => {
+            outputs_cache.retrieve_cache_output(
+                graph,
+                node_id,
+                &graph[node_id]
+                    .user_data
+                    .template
+                    .inputs().first().unwrap().0.clone())?
+        };
+        [$n:tt] => {
+            { retrieve_from_cache!(@accum ($n) -> ()) }
+        };
         (@accum (0) -> ($($body:tt)*))
             => {retrieve_from_cache!(@as_expr ($($body)*))};
         (@accum (1) -> ($($body:tt)*))
@@ -273,28 +293,25 @@ fn process_template(
                                       .template
                                       .inputs()[9].0.clone())?, $($body)*))};
         (@as_expr $e:expr) => {$e};
-        [0] => {
-            compile_error!("Macro returns a value or a tuple, supply an \
-                            integer greater than 0")
-        };
-        [1] => {
-            outputs_cache.retrieve_cache_output(
-                graph,
-                node_id,
-                &graph[node_id]
-                    .user_data
-                    .template
-                    .inputs().first().unwrap().0.clone())?
-        };
-        [$n:tt] => {
-            { retrieve_from_cache!(@accum ($n) -> ()) }
-        };
     }
 
     // creates a vector of the hash of the inputs
     macro_rules! hash_inputs {
         ($($i:ident),*) => (vec![$(OutputsCache::calculate_hash(&$i)),*]);
     }
+
+    macro_rules! set_cache_output {
+        ($(($name:expr, $res:expr, $hash_inputs:expr)),*) => (
+            $(outputs_cache.populate_output(
+                graph,
+                node_id,
+                $name,
+                $res,
+                $hash_inputs,
+            )?;)*
+        );
+    }
+
 
     match template {
         | NodeInstruction::String => {
@@ -303,13 +320,7 @@ fn process_template(
 
             if let BasicValue::String { value: _ } = s {
                 let res = s;
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -320,13 +331,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Path { value };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -347,13 +352,7 @@ fn process_template(
                         })),
                 };
                 let res = BasicValue::String { value: file };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a path");
             }
@@ -378,13 +377,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::System { value: sys };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -397,13 +390,7 @@ fn process_template(
                 let res = BasicValue::String {
                     value: value.statistics(translator),
                 };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -435,13 +422,7 @@ fn process_template(
                             Formatter::from(translator, &limit.1)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -481,13 +462,7 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -522,13 +497,7 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -543,13 +512,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Symbol { value };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -570,13 +533,7 @@ fn process_template(
                     Formatter::from(translator, &res)
                 );
                 let res = BasicValue::String { value: output };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -606,13 +563,7 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -637,13 +588,7 @@ fn process_template(
                             })),
                     };
                 let res = BasicValue::Experiment { value };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -674,13 +619,7 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -715,13 +654,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -746,13 +679,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::GroupingFunction { value: *res };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -783,13 +710,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -823,13 +744,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -844,13 +759,7 @@ fn process_template(
                     | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::Graph { value };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -939,13 +848,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{dot}"),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -973,13 +876,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::DisplayNode { value: res };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1005,13 +902,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::DisplayEdge { value: res };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1037,13 +928,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::ColorNode { value: res };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1069,13 +954,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::ColorEdge { value: res };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1114,13 +993,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{graphml}"),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -1161,13 +1034,7 @@ fn process_template(
                             Rc::new(reactions),
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -1194,13 +1061,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Environment { value: *env };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1225,13 +1086,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Set { value: set };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1256,13 +1111,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Context { value: context };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1287,13 +1136,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Reactions { value: reactions };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1306,13 +1149,7 @@ fn process_template(
                 let res = BasicValue::PositiveSystem {
                     value: value.into(),
                 };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -1344,13 +1181,7 @@ fn process_template(
                             Formatter::from(translator, &limit.1)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1390,13 +1221,7 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1431,13 +1256,7 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1460,13 +1279,7 @@ fn process_template(
                     Formatter::from(translator, &res)
                 );
                 let res = BasicValue::String { value: output };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a positive system");
             }
@@ -1497,13 +1310,7 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -1539,13 +1346,7 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -1575,13 +1376,7 @@ fn process_template(
                         }
                     };
                     let res = BasicValue::Trace { value: trace };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not a positive integer"),
@@ -1611,13 +1406,7 @@ fn process_template(
                         }
                     };
                     let res = BasicValue::PositiveTrace { value: trace };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not a positive integer"),
@@ -1641,13 +1430,7 @@ fn process_template(
                     };
 
                     let res = BasicValue::Trace { value: new_trace };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::Trace { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1671,13 +1454,7 @@ fn process_template(
                     };
 
                     let res = BasicValue::PositiveTrace { value: new_trace };
-                    outputs_cache.populate_output(
-                        graph,
-                        node_id,
-                        output_name,
-                        res,
-                        hash_inputs,
-                    )?;
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
                 },
                 | (BasicValue::PositiveTrace { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1706,13 +1483,7 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::PositiveSet { value: set };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1726,17 +1497,99 @@ fn process_template(
                     value: value
                         .to_positive_set(rsprocess::element::IdState::Positive),
                 };
-                outputs_cache.populate_output(
-                    graph,
-                    node_id,
-                    output_name,
-                    res,
-                    hash_inputs,
-                )?;
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
         },
+        | NodeInstruction::ComposePositiveSystem => {
+            let (
+                input_env,
+                input_initial_etities,
+                input_context,
+                input_reactions,
+            ) = retrieve_from_cache![4];
+            let hash_inputs = hash_inputs!(
+                input_env,
+                input_initial_etities,
+                input_context,
+                input_reactions
+            );
+            match (
+                input_env,
+                input_initial_etities,
+                input_context,
+                input_reactions,
+            ) {
+                | (
+                    BasicValue::PositiveEnvironment { value: env },
+                    BasicValue::PositiveSet { value: set },
+                    BasicValue::PositiveContext { value: context },
+                    BasicValue::PositiveReactions { value: reactions },
+                ) => {
+                    let res = BasicValue::PositiveSystem {
+                        value: rsprocess::system::PositiveSystem::from(
+                            Rc::new(env),
+                            set,
+                            context,
+                            Rc::new(reactions),
+                        ),
+                    };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | _ => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
+        },
+        | NodeInstruction::DecomposeSystem => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::System { value } = s {
+                let env = value.environment().clone();
+                let initial = value.available_entities().clone();
+                let context = value.context().clone();
+                let reactions = value.reactions().clone();
+
+                let env = BasicValue::Environment { value: env };
+                let initial = BasicValue::Set { value: initial };
+                let context = BasicValue::Context { value: context };
+                let reactions = BasicValue::Reactions { value: reactions };
+
+
+                set_cache_output!((output_names[0], env, hash_inputs.clone()));
+                set_cache_output!((output_names[1], initial, hash_inputs.clone()));
+                set_cache_output!((output_names[2], context, hash_inputs.clone()));
+                set_cache_output!((output_names[3], reactions, hash_inputs));
+            } else {
+                anyhow::bail!("Not a system");
+            }
+        },
+        | NodeInstruction::DecomposePositiveSystem => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::PositiveSystem { value } = s {
+                let env = value.environment().clone();
+                let initial = value.available_entities().clone();
+                let context = value.context().clone();
+                let reactions = value.reactions().clone();
+
+                let env = BasicValue::PositiveEnvironment { value: env };
+                let initial = BasicValue::PositiveSet { value: initial };
+                let context = BasicValue::PositiveContext { value: context };
+                let reactions = BasicValue::PositiveReactions { value: reactions };
+
+
+                set_cache_output!((output_names[0], env, hash_inputs.clone()));
+                set_cache_output!((output_names[1], initial, hash_inputs.clone()));
+                set_cache_output!((output_names[2], context, hash_inputs.clone()));
+                set_cache_output!((output_names[3], reactions, hash_inputs));
+            } else {
+                anyhow::bail!("Not a positive system");
+            }
+        }
     }
     Ok(None)
 }
