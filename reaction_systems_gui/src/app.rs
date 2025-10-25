@@ -284,6 +284,8 @@ pub enum NodeInstruction {
     PositiveTrace,
     SliceTrace,
     PositiveSliceTrace,
+    TraceToString,
+    PositiveTraceToString,
 }
 
 impl NodeInstruction {
@@ -377,6 +379,8 @@ impl NodeInstruction {
                 ("reactions", PositiveReactions),
             ],
             | Self::DecomposePositiveSystem => vec![("system", PositiveSystem)],
+            | Self::TraceToString => vec![("trace", Trace)],
+            | Self::PositiveTraceToString => vec![("trace", PositiveTrace)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -442,6 +446,8 @@ impl NodeInstruction {
                 ("context", PositiveContext),
                 ("reactions", PositiveReactions),
             ],
+            | Self::TraceToString => vec![("out", String)],
+            | Self::PositiveTraceToString => vec![("out", String)],
         };
         res.into_iter().map(|res| (res.0.to_string(), res.1)).collect::<_>()
     }
@@ -857,6 +863,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::ComposePositiveSystem => "Compose a positive system",
             | Self::DecomposeSystem => "Decompose a system",
             | Self::DecomposePositiveSystem  => "Decompose a positive system",
+            | Self::TraceToString => "Trace to string",
+            | Self::PositiveTraceToString => "Positive trace to string",
         })
     }
 
@@ -910,7 +918,10 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::DecomposePositiveSystem => vec!["Positive System"],
             | Self::Trace => vec!["Trace", "System"],
             | Self::PositiveTrace => vec!["Trace", "Positive System"],
-            | Self::SliceTrace | Self::PositiveSliceTrace => vec!["Trace"],
+            | Self::SliceTrace
+            | Self::PositiveSliceTrace
+            | Self::TraceToString
+            | Self::PositiveTraceToString => vec!["Trace"],
         }
     }
 
@@ -992,6 +1003,8 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::ComposePositiveSystem,
             NodeInstruction::DecomposeSystem,
             NodeInstruction::DecomposePositiveSystem,
+            NodeInstruction::TraceToString,
+            NodeInstruction::PositiveTraceToString,
         ]
     }
 }

@@ -1589,7 +1589,33 @@ fn process_template(
             } else {
                 anyhow::bail!("Not a positive system");
             }
-        }
+        },
+        | NodeInstruction::TraceToString => {
+            let trace = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(trace);
+
+            if let BasicValue::Trace { value } = trace {
+                let res = BasicValue::String {
+                    value: format!("{}", Formatter::from(translator, &value)),
+                };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a trace");
+            }
+        },
+        | NodeInstruction::PositiveTraceToString => {
+            let trace = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(trace);
+
+            if let BasicValue::PositiveTrace { value } = trace {
+                let res = BasicValue::String {
+                    value: format!("{}", Formatter::from(translator, &value)),
+                };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a positive trace");
+            }
+        },
     }
     Ok(None)
 }
