@@ -1502,7 +1502,7 @@ fn process_template(
                 anyhow::bail!("Not a string");
             }
         },
-        | NodeInstruction::ComposePositiveSystem => {
+        | NodeInstruction::PositiveComposeSystem => {
             let (
                 input_env,
                 input_initial_etities,
@@ -1566,7 +1566,7 @@ fn process_template(
                 anyhow::bail!("Not a system");
             }
         },
-        | NodeInstruction::DecomposePositiveSystem => {
+        | NodeInstruction::PositiveDecomposeSystem => {
             let s = retrieve_from_cache![1];
             let hash_inputs = hash_inputs!(s);
 
@@ -1615,6 +1615,225 @@ fn process_template(
             } else {
                 anyhow::bail!("Not a positive trace");
             }
+        },
+        | NodeInstruction::PositiveEnvironment => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::grammar::PositiveEnvironmentParser::new()
+                    .parse(&mut *translator, &value);
+                let env = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                let res = BasicValue::PositiveEnvironment { value: *env };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::PositiveContext => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::grammar::PositiveContextParser::new()
+                    .parse(&mut *translator, &value);
+                let context = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                let res = BasicValue::PositiveContext { value: context };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::PositiveReactions => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::grammar::PositiveReactionsParser::new()
+                    .parse(&mut *translator, &value);
+                let reactions = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                let res = BasicValue::PositiveReactions { value: reactions };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::ToPositiveContext => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::Context { value } = s {
+                let res = BasicValue::PositiveContext {
+                    value: value.into(),
+                };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a context");
+            }
+        },
+        | NodeInstruction::ToPositiveEnvironment => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::Environment { value } = s {
+                let res = BasicValue::PositiveEnvironment {
+                    value: value.into(),
+                };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not an environment");
+            }
+        },
+        | NodeInstruction::ToPositiveReactions => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::Reactions { value } = s {
+                let res = BasicValue::PositiveReactions {
+                    value: rsprocess::reaction::PositiveReaction::from_reactions(&value),
+                };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not reactions");
+            }
+        },
+        | NodeInstruction::OverwriteContextEntities => {
+            let (sys, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, set);
+
+            match (sys, set) {
+                | (
+                    BasicValue::System { value: sys },
+                    BasicValue::Set { value: set },
+                ) => {
+                    let mut new_sys = sys.clone();
+                    new_sys.overwrite_context_elements(set);
+                    let res = BasicValue::System { value: new_sys };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (BasicValue::System { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::Set { value: _ }) =>
+                    anyhow::bail!("Not a system"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::OverwriteReactionEntities => {
+            let (sys, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, set);
+
+            match (sys, set) {
+                | (
+                    BasicValue::System { value: sys },
+                    BasicValue::Set { value: set },
+                ) => {
+                    let mut new_sys = sys.clone();
+                    new_sys.overwrite_product_elements(set);
+                    let res = BasicValue::System { value: new_sys };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (BasicValue::System { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::Set { value: _ }) =>
+                    anyhow::bail!("Not a system"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveOverwriteContextEntities => {
+            let (sys, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, set);
+
+            match (sys, set) {
+                | (
+                    BasicValue::PositiveSystem { value: sys },
+                    BasicValue::PositiveSet { value: set },
+                ) => {
+                    let mut new_sys = sys.clone();
+                    new_sys.overwrite_context_elements(set);
+                    let res = BasicValue::PositiveSystem { value: new_sys };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (BasicValue::PositiveSystem { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::PositiveSet { value: _ }) =>
+                    anyhow::bail!("Not a system"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveOverwriteReactionEntities => {
+            let (sys, set) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(sys, set);
+
+            match (sys, set) {
+                | (
+                    BasicValue::PositiveSystem { value: sys },
+                    BasicValue::PositiveSet { value: set },
+                ) => {
+                    let mut new_sys = sys.clone();
+                    new_sys.overwrite_product_elements(set);
+                    let res = BasicValue::PositiveSystem { value: new_sys };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (BasicValue::PositiveSystem { value: _ }, _) =>
+                    anyhow::bail!("Not a set"),
+                | (_, BasicValue::PositiveSet { value: _ }) =>
+                    anyhow::bail!("Not a system"),
+                | (_, _) => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveGraph => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::PositiveSystem { value } = s {
+                let value = match value.digraph() {
+                    | Ok(g) => g,
+                    | Err(e) => anyhow::bail!(e),
+                };
+                let res = BasicValue::PositiveGraph { value };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a system");
+            }
+        },
+        | NodeInstruction::PositiveDot => {
+            todo!()
+        },
+        | NodeInstruction::PositiveGraphML => {
+            todo!()
         },
     }
     Ok(None)

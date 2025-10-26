@@ -58,6 +58,7 @@ pub enum BasicDataType {
     PositiveEnvironment,
     PositiveContext,
     PositiveReactions,
+    PositiveGraph,
 }
 
 /// Should reflect `BasicDataType`'s values, holding the data that will be
@@ -96,8 +97,8 @@ pub enum BasicValue {
         value: (Vec<u32>, Vec<rsprocess::set::Set>),
     },
     Graph {
-        value:
-            petgraph::Graph<rsprocess::system::System, rsprocess::label::Label>,
+        value: petgraph::Graph<rsprocess::system::System,
+                               rsprocess::label::Label>,
     },
     GroupingFunction {
         value: assert::relabel::Assert,
@@ -154,6 +155,10 @@ pub enum BasicValue {
     },
     PositiveReactions {
         value: Vec<rsprocess::reaction::PositiveReaction>,
+    },
+    PositiveGraph {
+        value: petgraph::Graph<rsprocess::system::PositiveSystem,
+                               rsprocess::label::PositiveLabel>,
     },
 }
 
@@ -229,28 +234,39 @@ impl Default for BasicValue {
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum NodeInstruction {
+    // basic instructions
     String,
     Path,
     ReadPath,
+    SaveString,
+
+    // create basic data types
     Symbol,
+    Set,
+    Environment,
+    Context,
+    Reactions,
+    PositiveSet,
+    PositiveEnvironment,
+    PositiveContext,
+    PositiveReactions,
     Experiment,
     GroupFunction,
-    SaveString,
     DisplayNode,
     DisplayEdge,
     ColorNode,
     ColorEdge,
-    Environment,
-    Set,
-    Context,
-    Reactions,
-    PositiveSet,
+
+    // convert basic data types
     ToPositiveSet,
+    ToPositiveContext,
+    ToPositiveEnvironment,
+    ToPositiveReactions,
 
     // system instructions
+    System,
     ComposeSystem,
     DecomposeSystem,
-    System,
     Statistics,
     Target,
     Run,
@@ -258,14 +274,8 @@ pub enum NodeInstruction {
     Frequency,
     LimitFrequency,
     FastFrequency,
-    SystemGraph,
-
-    // graph instructions
-    BisimilarityKanellakisSmolka,
-    BisimilarityPaigeTarjanNoLabels,
-    BisimilarityPaigeTarjan,
-    Dot,
-    GraphML,
+    OverwriteContextEntities,
+    OverwriteReactionEntities,
 
     // positive system instructions
     PositiveSystem,
@@ -275,16 +285,35 @@ pub enum NodeInstruction {
     PositiveFrequency,
     PositiveLimitFrequency,
     PositiveFastFrequency,
-    ComposePositiveSystem,
-    DecomposePositiveSystem,
-    // PositiveGraph,
+    PositiveComposeSystem,
+    PositiveDecomposeSystem,
+    PositiveOverwriteContextEntities,
+    PositiveOverwriteReactionEntities,
+
+    // system graph instructions
+    SystemGraph,
+    BisimilarityKanellakisSmolka,
+    BisimilarityPaigeTarjanNoLabels,
+    BisimilarityPaigeTarjan,
+    Dot,
+    GraphML,
+
+    // positive system graph instructions
+    PositiveGraph,
+    // PositiveBisimilarityKanellakisSmolka,
+    // PositiveBisimilarityPaigeTarjanNoLabels,
+    // PositiveBisimilarityPaigeTarjan,
+    PositiveDot,
+    PositiveGraphML,
 
     // trace instructions
     Trace,
-    PositiveTrace,
     SliceTrace,
-    PositiveSliceTrace,
     TraceToString,
+
+    // positive trace instructions
+    PositiveTrace,
+    PositiveSliceTrace,
     PositiveTraceToString,
 }
 
@@ -372,15 +401,29 @@ impl NodeInstruction {
             | Self::PositiveSet => vec![("string", String)],
             | Self::ToPositiveSet => vec![("value", Set)],
             | Self::DecomposeSystem => vec![("system", System)],
-            | Self::ComposePositiveSystem => vec![
+            | Self::PositiveComposeSystem => vec![
                 ("environment", PositiveEnvironment),
                 ("initial entities", PositiveSet),
                 ("context", PositiveContext),
                 ("reactions", PositiveReactions),
             ],
-            | Self::DecomposePositiveSystem => vec![("system", PositiveSystem)],
+            | Self::PositiveDecomposeSystem => vec![("system", PositiveSystem)],
             | Self::TraceToString => vec![("trace", Trace)],
             | Self::PositiveTraceToString => vec![("trace", PositiveTrace)],
+            | Self::PositiveEnvironment => vec![("value", String)],
+            | Self::PositiveContext => vec![("value", String)],
+            | Self::PositiveReactions => vec![("value", String)],
+            | Self::ToPositiveContext => vec![("value", Context)],
+            | Self::ToPositiveEnvironment => vec![("value", Environment)],
+            | Self::ToPositiveReactions => vec![("value", Reactions)],
+            | Self::OverwriteContextEntities => vec![("system", System), ("elements", Set)],
+            | Self::OverwriteReactionEntities => vec![("system", System), ("elements", Set)],
+            | Self::PositiveOverwriteContextEntities => vec![("system", PositiveSystem), ("elements", PositiveSet)],
+            | Self::PositiveOverwriteReactionEntities => vec![("system", PositiveSystem), ("elements", PositiveSet)],
+            | Self::PositiveGraph => vec![("sys", PositiveSystem)],
+            | Self::PositiveDot => vec![("graph", PositiveGraph)],
+            | Self::PositiveGraphML => vec![("graph", PositiveGraph)],
+
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -433,14 +476,14 @@ impl NodeInstruction {
             | Self::PositiveSliceTrace => vec![("out", PositiveTrace)],
             | Self::PositiveSet => vec![("out", PositiveSet)],
             | Self::ToPositiveSet => vec![("out", PositiveSet)],
-            | Self::ComposePositiveSystem => vec![("out", PositiveSystem)],
+            | Self::PositiveComposeSystem => vec![("out", PositiveSystem)],
             | Self::DecomposeSystem => vec![
                 ("environment", Environment),
                 ("initial entities", Set),
                 ("context", Context),
                 ("reactions", Reactions),
             ],
-            | Self::DecomposePositiveSystem => vec![
+            | Self::PositiveDecomposeSystem => vec![
                 ("environment", PositiveEnvironment),
                 ("initial entities", PositiveSet),
                 ("context", PositiveContext),
@@ -448,6 +491,19 @@ impl NodeInstruction {
             ],
             | Self::TraceToString => vec![("out", String)],
             | Self::PositiveTraceToString => vec![("out", String)],
+            | Self::PositiveEnvironment => vec![("out", PositiveEnvironment)],
+            | Self::PositiveContext => vec![("out", PositiveContext)],
+            | Self::PositiveReactions => vec![("out", PositiveReactions)],
+            | Self::ToPositiveContext => vec![("out", PositiveContext)],
+            | Self::ToPositiveEnvironment => vec![("out", PositiveEnvironment)],
+            | Self::ToPositiveReactions => vec![("out", PositiveReactions)],
+            | Self::OverwriteContextEntities => vec![("out", System)],
+            | Self::OverwriteReactionEntities => vec![("out", System)],
+            | Self::PositiveOverwriteContextEntities => vec![("out", PositiveSystem)],
+            | Self::PositiveOverwriteReactionEntities => vec![("out", PositiveSystem)],
+            | Self::PositiveGraph => vec![("out", PositiveGraph)],
+            | Self::PositiveDot => vec![("out", String)],
+            | Self::PositiveGraphML => vec![("out", String)],
         };
         res.into_iter().map(|res| (res.0.to_string(), res.1)).collect::<_>()
     }
@@ -533,6 +589,8 @@ impl NodeInstruction {
                 helper!(PositiveContext, rsprocess::process::PositiveProcess::default()),
             | BasicDataType::PositiveReactions =>
                 helper!(PositiveReactions, vec![]),
+            | BasicDataType::PositiveGraph =>
+                helper!(PositiveGraph, petgraph::Graph::new())
         }
     }
 
@@ -581,6 +639,7 @@ impl NodeInstruction {
             | BasicDataType::PositiveEnvironment => helper!(PositiveEnvironment),
             | BasicDataType::PositiveContext => helper!(PositiveContext),
             | BasicDataType::PositiveReactions => helper!(PositiveReactions),
+            | BasicDataType::PositiveGraph => helper!(PositiveGraph),
         }
     }
 }
@@ -768,6 +827,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::PositiveEnvironment => egui::Color32::from_rgb(10, 20, 50),
             | Self::PositiveContext => egui::Color32::from_rgb(20, 10, 50),
             | Self::PositiveReactions => egui::Color32::from_rgb(50, 10, 20),
+            | Self::PositiveGraph => egui::Color32::from_rgb(100, 130, 90),
         }
     }
 
@@ -798,6 +858,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::PositiveEnvironment => Cow::Borrowed("positive environment"),
             | Self::PositiveContext => Cow::Borrowed("positive context"),
             | Self::PositiveReactions => Cow::Borrowed("positive reactions"),
+            | Self::PositiveGraph => Cow::Borrowed("positive graph"),
         }
     }
 }
@@ -860,11 +921,24 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveSliceTrace => "Positive Slice Trace",
             | Self::PositiveSet => "Positive Set",
             | Self::ToPositiveSet => "Convert to Positive Set",
-            | Self::ComposePositiveSystem => "Compose a positive system",
+            | Self::PositiveComposeSystem => "Compose a positive system",
             | Self::DecomposeSystem => "Decompose a system",
-            | Self::DecomposePositiveSystem  => "Decompose a positive system",
+            | Self::PositiveDecomposeSystem  => "Decompose a positive system",
             | Self::TraceToString => "Trace to string",
             | Self::PositiveTraceToString => "Positive trace to string",
+            | Self::PositiveEnvironment => "Positive Environment",
+            | Self::PositiveContext => "Positive Context",
+            | Self::PositiveReactions => "Positive Reactions",
+            | Self::ToPositiveContext => "Convert to Positive Context",
+            | Self::ToPositiveEnvironment => "Convert to Positive Environment",
+            | Self::ToPositiveReactions => "Convert to Positive Reactions",
+            | Self::OverwriteContextEntities => "Overwrite context entities",
+            | Self::OverwriteReactionEntities => "Overwirite reaction entities",
+            | Self::PositiveOverwriteContextEntities => "Overwrite context entities of Positive System",
+            | Self::PositiveOverwriteReactionEntities => "Overwrite reaction entities of Positive System",
+            | Self::PositiveGraph => "Graph of a Positive System",
+            | Self::PositiveDot => "Create Dot file of Positive System",
+            | Self::PositiveGraphML => "Create GraphML file of Positive System",
         })
     }
 
@@ -889,7 +963,9 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::Set
             | Self::Context
             | Self::Reactions
-            | Self::DecomposeSystem => vec!["System"],
+            | Self::DecomposeSystem
+            | Self::OverwriteContextEntities
+            | Self::OverwriteReactionEntities => vec!["System"],
             | Self::Frequency
             | Self::LimitFrequency
             | Self::Experiment
@@ -914,8 +990,19 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveFastFrequency
             | Self::PositiveSet
             | Self::ToPositiveSet
-            | Self::ComposePositiveSystem
-            | Self::DecomposePositiveSystem => vec!["Positive System"],
+            | Self::PositiveComposeSystem
+            | Self::PositiveDecomposeSystem
+            | Self::PositiveEnvironment
+            | Self::PositiveContext
+            | Self::PositiveReactions
+            | Self::ToPositiveContext
+            | Self::ToPositiveEnvironment
+            | Self::ToPositiveReactions
+            | Self::PositiveOverwriteContextEntities
+            | Self::PositiveOverwriteReactionEntities
+            | Self::PositiveGraph
+            | Self::PositiveDot
+            | Self::PositiveGraphML => vec!["Positive System"],
             | Self::Trace => vec!["Trace", "System"],
             | Self::PositiveTrace => vec!["Trace", "Positive System"],
             | Self::SliceTrace
@@ -1000,11 +1087,24 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveSliceTrace,
             NodeInstruction::PositiveSet,
             NodeInstruction::ToPositiveSet,
-            NodeInstruction::ComposePositiveSystem,
+            NodeInstruction::PositiveComposeSystem,
             NodeInstruction::DecomposeSystem,
-            NodeInstruction::DecomposePositiveSystem,
+            NodeInstruction::PositiveDecomposeSystem,
             NodeInstruction::TraceToString,
             NodeInstruction::PositiveTraceToString,
+            NodeInstruction::PositiveEnvironment,
+            NodeInstruction::PositiveContext,
+            NodeInstruction::PositiveReactions,
+            NodeInstruction::ToPositiveContext,
+            NodeInstruction::ToPositiveEnvironment,
+            NodeInstruction::ToPositiveReactions,
+            NodeInstruction::OverwriteContextEntities,
+            NodeInstruction::OverwriteReactionEntities,
+            NodeInstruction::PositiveOverwriteContextEntities,
+            NodeInstruction::PositiveOverwriteReactionEntities,
+            NodeInstruction::PositiveGraph,
+            NodeInstruction::PositiveDot,
+            NodeInstruction::PositiveGraphML,
         ]
     }
 }
@@ -1129,6 +1229,9 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::PositiveReactions { value: _ } => {
                 ui.label(param_name);
             },
+            | BasicValue::PositiveGraph { value: _ } => {
+                ui.label(param_name);
+            }
         }
 
         responses
@@ -1161,15 +1264,50 @@ impl NodeDataTrait for NodeData {
             .unwrap_or(false);
 
         match (is_active, graph[node_id].user_data.template) {
+            | (_, ni) if ni.output().len() > 1 => {
+                // no buttons for nodes with more than one output
+            }
             | (_, NodeInstruction::SaveString) => {
+                // no need to see the output, just write to file
                 if ui.button("Write").clicked() {
                     responses.push(NodeResponse::User(
                         CustomResponse::SaveToFile(node_id),
                     ));
                 }
             },
-            | (_, ni) if ni.output().len() > 1 => {
-                // no button for nodes with more than one output
+            | (true, NodeInstruction::ReadPath) => {
+                // since no filewatcher we simply give the option to reload the
+                // file
+                let button = egui::Button::new(
+                    egui::RichText::new("👁 Active").color(egui::Color32::BLACK),
+                ).fill(egui::Color32::GOLD);
+                if ui.add(button).clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::ClearActiveNode,
+                    ));
+                }
+
+                let button = egui::Button::new(egui::RichText::new("Update file"));
+                if ui.add(button).clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::FieldModified(node_id),
+                    ));
+                }
+            }
+            | (false, NodeInstruction::ReadPath) => {
+                // since no filewatcher we simply give the option to reload the
+                // file
+                if ui.button("👁 Set active").clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::SetActiveNode(node_id),
+                    ));
+                }
+                let button = egui::Button::new(egui::RichText::new("Update file"));
+                if ui.add(button).clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::FieldModified(node_id),
+                    ));
+                }
             }
             | (true, _) => {
                 let button = egui::Button::new(
@@ -1684,7 +1822,16 @@ fn get_layout(
                     }
                 }
                 text.append(")", 0., Default::default());
-            }
+            },
+            | BasicValue::PositiveGraph { value } => text.append(
+                &format!(
+                    "A graph with {} nodes and {} edges.",
+                    value.node_count(),
+                    value.edge_count()
+                ),
+                0.,
+                Default::default(),
+            ),
         },
         | Err(err) => {
             text.append(&format!("{err:?}"), 0., TextFormat {
