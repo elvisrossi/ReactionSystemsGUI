@@ -42,7 +42,8 @@ pub enum BasicDataType {
     Symbol,
     Experiment,
     Graph,
-    GroupingFunction,
+    AssertFunction,
+    GroupFunction,
     DisplayNode,
     DisplayEdge,
     ColorNode,
@@ -59,6 +60,8 @@ pub enum BasicDataType {
     PositiveContext,
     PositiveReactions,
     PositiveGraph,
+    PositiveAssertFunction,
+    PositiveGroupFunction,
 }
 
 /// Should reflect `BasicDataType`'s values, holding the data that will be
@@ -100,7 +103,7 @@ pub enum BasicValue {
         value: petgraph::Graph<rsprocess::system::System,
                                rsprocess::label::Label>,
     },
-    GroupingFunction {
+    AssertFunction {
         value: assert::relabel::Assert,
     },
     DisplayNode {
@@ -160,6 +163,15 @@ pub enum BasicValue {
         value: petgraph::Graph<rsprocess::system::PositiveSystem,
                                rsprocess::label::PositiveLabel>,
     },
+    GroupFunction {
+        value: assert::grouping::Assert,
+    },
+    PositiveAssertFunction {
+        value: assert::positive_relabel::PositiveAssert,
+    },
+    PositiveGroupFunction {
+        value: assert::positive_grouping::PositiveAssert,
+    },
 }
 
 impl Hash for BasicValue {
@@ -182,7 +194,8 @@ impl Hash for BasicValue {
             PositiveInt,
             Symbol,
             Experiment,
-            GroupingFunction,
+            AssertFunction,
+            GroupFunction,
             DisplayNode,
             DisplayEdge,
             ColorNode,
@@ -198,7 +211,9 @@ impl Hash for BasicValue {
             PositiveSet,
             PositiveEnvironment,
             PositiveContext,
-            PositiveReactions
+            PositiveReactions,
+            PositiveAssertFunction,
+            PositiveGroupFunction
         );
 
         match self {
@@ -251,7 +266,10 @@ pub enum NodeInstruction {
     PositiveContext,
     PositiveReactions,
     Experiment,
+    AssertFunction,
+    PositiveAssertFunction,
     GroupFunction,
+    PositiveGroupFunction,
     DisplayNode,
     DisplayEdge,
     ColorNode,
@@ -297,14 +315,16 @@ pub enum NodeInstruction {
     BisimilarityPaigeTarjan,
     Dot,
     GraphML,
+    GroupNodes,
 
     // positive system graph instructions
     PositiveGraph,
-    // PositiveBisimilarityKanellakisSmolka,
-    // PositiveBisimilarityPaigeTarjanNoLabels,
-    // PositiveBisimilarityPaigeTarjan,
+    PositiveBisimilarityKanellakisSmolka,
+    PositiveBisimilarityPaigeTarjanNoLabels,
+    PositiveBisimilarityPaigeTarjan,
     PositiveDot,
     PositiveGraphML,
+    PositiveGroupNodes,
 
     // trace instructions
     Trace,
@@ -339,19 +359,19 @@ impl NodeInstruction {
             | Self::BisimilarityKanellakisSmolka => vec![
                 ("first graph", Graph),
                 ("second graph", Graph),
-                ("group", GroupingFunction),
+                ("group", AssertFunction),
             ],
             | Self::BisimilarityPaigeTarjanNoLabels => vec![
                 ("first graph", Graph),
                 ("second graph", Graph),
-                ("group", GroupingFunction),
+                ("group", AssertFunction),
             ],
             | Self::BisimilarityPaigeTarjan => vec![
                 ("first graph", Graph),
                 ("second graph", Graph),
-                ("group", GroupingFunction),
+                ("group", AssertFunction),
             ],
-            | Self::GroupFunction => vec![("string", String)],
+            | Self::AssertFunction => vec![("string", String)],
             | Self::SystemGraph => vec![("sys", System)],
             | Self::SaveString => vec![("path", Path), ("string", String)],
             | Self::Dot => vec![
@@ -421,9 +441,38 @@ impl NodeInstruction {
             | Self::PositiveOverwriteContextEntities => vec![("system", PositiveSystem), ("elements", PositiveSet)],
             | Self::PositiveOverwriteReactionEntities => vec![("system", PositiveSystem), ("elements", PositiveSet)],
             | Self::PositiveGraph => vec![("sys", PositiveSystem)],
-            | Self::PositiveDot => vec![("graph", PositiveGraph)],
-            | Self::PositiveGraphML => vec![("graph", PositiveGraph)],
-
+            | Self::GroupFunction => vec![("value", String)],
+            | Self::GroupNodes => vec![("graph", Graph), ("grouping", GroupFunction)],
+            | Self::PositiveAssertFunction => vec![("value", String)],
+            | Self::PositiveGroupFunction => vec![("value", String)],
+            | Self::PositiveGroupNodes => vec![("graph", PositiveGraph), ("grouping", PositiveGroupFunction)],
+            | Self::PositiveDot => vec![
+                ("graph", PositiveGraph),
+                ("display node", DisplayNode),
+                ("display edge", DisplayEdge),
+                ("color node", ColorNode),
+                ("color edge", ColorEdge),
+            ],
+            | Self::PositiveGraphML => vec![
+                ("graph", PositiveGraph),
+                ("display node", DisplayNode),
+                ("display edge", DisplayEdge),
+            ],
+            | Self::PositiveBisimilarityKanellakisSmolka => vec![
+                ("first graph", PositiveGraph),
+                ("second graph", PositiveGraph),
+                ("group", PositiveAssertFunction),
+            ],
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels => vec![
+                ("first graph", PositiveGraph),
+                ("second graph", PositiveGraph),
+                ("group", PositiveAssertFunction),
+            ],
+            | Self::PositiveBisimilarityPaigeTarjan => vec![
+                ("first graph", PositiveGraph),
+                ("second graph", PositiveGraph),
+                ("group", PositiveAssertFunction),
+            ],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -449,7 +498,7 @@ impl NodeInstruction {
             | Self::BisimilarityKanellakisSmolka => vec![("out", String)],
             | Self::BisimilarityPaigeTarjanNoLabels => vec![("out", String)],
             | Self::BisimilarityPaigeTarjan => vec![("out", String)],
-            | Self::GroupFunction => vec![("out", GroupingFunction)],
+            | Self::AssertFunction => vec![("out", AssertFunction)],
             | Self::SystemGraph => vec![("out", Graph)],
             | Self::SaveString => vec![],
             | Self::Dot => vec![("out", String)],
@@ -504,6 +553,14 @@ impl NodeInstruction {
             | Self::PositiveGraph => vec![("out", PositiveGraph)],
             | Self::PositiveDot => vec![("out", String)],
             | Self::PositiveGraphML => vec![("out", String)],
+            | Self::GroupFunction => vec![("out", GroupFunction)],
+            | Self::GroupNodes => vec![("out", Graph)],
+            | Self::PositiveAssertFunction => vec![("out", PositiveAssertFunction)],
+            | Self::PositiveGroupFunction => vec![("out", PositiveGroupFunction)],
+            | Self::PositiveGroupNodes => vec![("out", PositiveGraph)],
+            | Self::PositiveBisimilarityKanellakisSmolka => vec![("out", String)],
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels => vec![("out", String)],
+            | Self::PositiveBisimilarityPaigeTarjan => vec![("out", String)],
         };
         res.into_iter().map(|res| (res.0.to_string(), res.1)).collect::<_>()
     }
@@ -542,8 +599,8 @@ impl NodeInstruction {
             | BasicDataType::Experiment =>
                 helper!(Experiment, (vec![], vec![])),
             | BasicDataType::Graph => helper!(Graph, petgraph::Graph::new()),
-            | BasicDataType::GroupingFunction =>
-                helper!(GroupingFunction, assert::relabel::Assert::default()),
+            | BasicDataType::AssertFunction =>
+                helper!(AssertFunction, assert::relabel::Assert::default()),
             | BasicDataType::DisplayNode =>
                 helper!(DisplayNode, rsprocess::graph::NodeDisplay {
                     base: vec![rsprocess::graph::NodeDisplayBase::Hide],
@@ -590,7 +647,13 @@ impl NodeInstruction {
             | BasicDataType::PositiveReactions =>
                 helper!(PositiveReactions, vec![]),
             | BasicDataType::PositiveGraph =>
-                helper!(PositiveGraph, petgraph::Graph::new())
+                helper!(PositiveGraph, petgraph::Graph::new()),
+            | BasicDataType::GroupFunction =>
+                helper!(GroupFunction, assert::grouping::Assert::default()),
+            | BasicDataType::PositiveAssertFunction =>
+                helper!(PositiveAssertFunction, assert::positive_relabel::PositiveAssert::default()),
+            | BasicDataType::PositiveGroupFunction =>
+                helper!(PositiveGroupFunction, assert::positive_grouping::PositiveAssert::default()),
         }
     }
 
@@ -623,7 +686,7 @@ impl NodeInstruction {
             | BasicDataType::Symbol => helper!(Symbol),
             | BasicDataType::Experiment => helper!(Experiment),
             | BasicDataType::Graph => helper!(Graph),
-            | BasicDataType::GroupingFunction => helper!(GroupingFunction),
+            | BasicDataType::AssertFunction => helper!(AssertFunction),
             | BasicDataType::DisplayNode => helper!(DisplayNode),
             | BasicDataType::DisplayEdge => helper!(DisplayEdge),
             | BasicDataType::ColorNode => helper!(ColorNode),
@@ -640,6 +703,9 @@ impl NodeInstruction {
             | BasicDataType::PositiveContext => helper!(PositiveContext),
             | BasicDataType::PositiveReactions => helper!(PositiveReactions),
             | BasicDataType::PositiveGraph => helper!(PositiveGraph),
+            | BasicDataType::GroupFunction => helper!(GroupFunction),
+            | BasicDataType::PositiveAssertFunction => helper!(PositiveAssertFunction),
+            | BasicDataType::PositiveGroupFunction => helper!(PositiveGroupFunction),
         }
     }
 }
@@ -811,7 +877,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::Symbol => egui::Color32::YELLOW,
             | Self::Experiment => egui::Color32::GRAY,
             | Self::Graph => egui::Color32::DARK_GREEN,
-            | Self::GroupingFunction => egui::Color32::DARK_GRAY,
+            | Self::AssertFunction => egui::Color32::DARK_GRAY,
             | Self::DisplayNode => egui::Color32::from_rgb(46, 139, 87),
             | Self::DisplayEdge => egui::Color32::from_rgb(67, 205, 128),
             | Self::ColorNode => egui::Color32::from_rgb(78, 238, 148),
@@ -828,6 +894,9 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::PositiveContext => egui::Color32::from_rgb(20, 10, 50),
             | Self::PositiveReactions => egui::Color32::from_rgb(50, 10, 20),
             | Self::PositiveGraph => egui::Color32::from_rgb(100, 130, 90),
+            | Self::GroupFunction => egui::Color32::from_rgb(0, 0, 0),
+            | Self::PositiveAssertFunction => egui::Color32::from_rgb(200, 150, 120),
+            | Self::PositiveGroupFunction => egui::Color32::from_rgb(150, 120, 200),
         }
     }
 
@@ -842,7 +911,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::Symbol => Cow::Borrowed("symbol"),
             | Self::Experiment => Cow::Borrowed("experiment"),
             | Self::Graph => Cow::Borrowed("graph"),
-            | Self::GroupingFunction => Cow::Borrowed("grouping function"),
+            | Self::AssertFunction => Cow::Borrowed("grouping function"),
             | Self::DisplayNode => Cow::Borrowed("display node"),
             | Self::DisplayEdge => Cow::Borrowed("display edge"),
             | Self::ColorNode => Cow::Borrowed("color node"),
@@ -859,6 +928,9 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::PositiveContext => Cow::Borrowed("positive context"),
             | Self::PositiveReactions => Cow::Borrowed("positive reactions"),
             | Self::PositiveGraph => Cow::Borrowed("positive graph"),
+            | Self::GroupFunction => Cow::Borrowed("grouping function"),
+            | Self::PositiveAssertFunction => Cow::Borrowed("positive assert function"),
+            | Self::PositiveGroupFunction => Cow::Borrowed("positive group function"),
         }
     }
 }
@@ -875,7 +947,7 @@ impl NodeTemplateTrait for NodeInstruction {
         &self,
         _user_state: &mut Self::UserState,
     ) -> Cow<'_, str> {
-        Cow::Borrowed(match self {
+        Cow::Borrowed(match self { // TODO rename to something more appropriate
             | Self::String => "String",
             | Self::Path => "Path",
             | Self::ReadPath => "Read a file",
@@ -894,7 +966,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::BisimilarityPaigeTarjanNoLabels =>
                 "Bisimilarity Paige & Tarjan (ignore labels)",
             | Self::BisimilarityPaigeTarjan => "Bisimilarity Paige & Tarjan",
-            | Self::GroupFunction => "Group Function for Graphs",
+            | Self::AssertFunction => "Group Edges on Graph",
             | Self::SystemGraph => "Graph of a System",
             | Self::SaveString => "Save string to file",
             | Self::Dot => "Create Dot file",
@@ -939,6 +1011,14 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveGraph => "Graph of a Positive System",
             | Self::PositiveDot => "Create Dot file of Positive System",
             | Self::PositiveGraphML => "Create GraphML file of Positive System",
+            | Self::GroupFunction => "Grouping Function",
+            | Self::GroupNodes => "Group Nodes",
+            | Self::PositiveAssertFunction => "Positive Grouping of Edges on Graph",
+            | Self::PositiveGroupFunction => "Positive Grouping of Nodes on Graph",
+            | Self::PositiveGroupNodes => "Positive Group Nodes",
+            | Self::PositiveBisimilarityKanellakisSmolka => "Positive Bisimilarity Kanellakis & Smolka",
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels => "Positive Paige & Torjan (ignore labels)",
+            | Self::PositiveBisimilarityPaigeTarjan => "Positive Paige & Torjan",
         })
     }
 
@@ -947,7 +1027,7 @@ impl NodeTemplateTrait for NodeInstruction {
         &self,
         _user_state: &mut Self::UserState,
     ) -> Vec<&'static str> {
-        match self {
+        match self { // TODO reorder?
             | Self::String
             | Self::Path
             | Self::ReadPath
@@ -968,26 +1048,28 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::OverwriteReactionEntities => vec!["System"],
             | Self::Frequency
             | Self::LimitFrequency
-            | Self::Experiment
             | Self::FastFrequency => vec!["System", "Frequency"],
+            | Self::Experiment => vec!["Frequency", "Positive Frequency"],
             | Self::BisimilarityKanellakisSmolka
             | Self::BisimilarityPaigeTarjanNoLabels
             | Self::BisimilarityPaigeTarjan
-            | Self::GroupFunction => vec!["System", "Bisimilarity"],
+            | Self::AssertFunction => vec!["Graph", "Bisimilarity"],
             | Self::SystemGraph => vec!["System", "Graph"],
+            | Self::GroupNodes
+            | Self::GroupFunction
             | Self::Dot
             | Self::DisplayNode
             | Self::DisplayEdge
             | Self::ColorNode
             | Self::ColorEdge
             | Self::GraphML => vec!["Graph"],
+            | Self::PositiveFrequency
+            | Self::PositiveLimitFrequency
+            | Self::PositiveFastFrequency => vec!["Positive System", "Positive Frequency"],
             | Self::PositiveSystem
             | Self::PositiveTarget
             | Self::PositiveRun
             | Self::PositiveLoop
-            | Self::PositiveFrequency
-            | Self::PositiveLimitFrequency
-            | Self::PositiveFastFrequency
             | Self::PositiveSet
             | Self::ToPositiveSet
             | Self::PositiveComposeSystem
@@ -999,16 +1081,22 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::ToPositiveEnvironment
             | Self::ToPositiveReactions
             | Self::PositiveOverwriteContextEntities
-            | Self::PositiveOverwriteReactionEntities
+            | Self::PositiveOverwriteReactionEntities => vec!["Positive System"],
             | Self::PositiveGraph
             | Self::PositiveDot
-            | Self::PositiveGraphML => vec!["Positive System"],
+            | Self::PositiveGraphML
+            | Self::PositiveAssertFunction => vec!["Positive System", "Positive Graph"],
+            | Self::PositiveGroupFunction
+            | Self::PositiveGroupNodes => vec!["Positive Graph"],
             | Self::Trace => vec!["Trace", "System"],
             | Self::PositiveTrace => vec!["Trace", "Positive System"],
             | Self::SliceTrace
             | Self::PositiveSliceTrace
             | Self::TraceToString
             | Self::PositiveTraceToString => vec!["Trace"],
+            | Self::PositiveBisimilarityKanellakisSmolka
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels
+            | Self::PositiveBisimilarityPaigeTarjan => vec!["Positive Graph", "Positive Bisimilarity"],
         }
     }
 
@@ -1060,7 +1148,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::BisimilarityKanellakisSmolka,
             NodeInstruction::BisimilarityPaigeTarjanNoLabels,
             NodeInstruction::BisimilarityPaigeTarjan,
-            NodeInstruction::GroupFunction,
+            NodeInstruction::AssertFunction,
             NodeInstruction::SystemGraph,
             NodeInstruction::SaveString,
             NodeInstruction::Dot,
@@ -1105,6 +1193,14 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveGraph,
             NodeInstruction::PositiveDot,
             NodeInstruction::PositiveGraphML,
+            NodeInstruction::GroupFunction,
+            NodeInstruction::GroupNodes,
+            NodeInstruction::PositiveAssertFunction,
+            NodeInstruction::PositiveGroupFunction,
+            NodeInstruction::PositiveGroupNodes,
+            NodeInstruction::PositiveBisimilarityKanellakisSmolka,
+            NodeInstruction::PositiveBisimilarityPaigeTarjanNoLabels,
+            NodeInstruction::PositiveBisimilarityPaigeTarjan,
         ]
     }
 }
@@ -1181,7 +1277,7 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::Graph { value: _ } => {
                 ui.label(param_name);
             },
-            | BasicValue::GroupingFunction { value: _ } => {
+            | BasicValue::AssertFunction { value: _ } => {
                 ui.label(param_name);
             },
             | BasicValue::DisplayNode { value: _ } => {
@@ -1231,7 +1327,16 @@ impl WidgetValueTrait for BasicValue {
             },
             | BasicValue::PositiveGraph { value: _ } => {
                 ui.label(param_name);
-            }
+            },
+            | BasicValue::GroupFunction { value: _ } => {
+                ui.label(param_name);
+            },
+            | BasicValue::PositiveAssertFunction { value: _ } => {
+                ui.label(param_name);
+            },
+            | BasicValue::PositiveGroupFunction { value: _ } => {
+                ui.label(param_name);
+            },
         }
 
         responses
@@ -1714,7 +1819,7 @@ fn get_layout(
                 0.,
                 Default::default(),
             ),
-            | BasicValue::GroupingFunction { value } => text.append(
+            | BasicValue::AssertFunction { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
                 0.,
                 Default::default(),
@@ -1829,6 +1934,21 @@ fn get_layout(
                     value.node_count(),
                     value.edge_count()
                 ),
+                0.,
+                Default::default(),
+            ),
+            | BasicValue::GroupFunction { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                Default::default(),
+            ),
+            | BasicValue::PositiveAssertFunction { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                Default::default(),
+            ),
+            | BasicValue::PositiveGroupFunction { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
                 0.,
                 Default::default(),
             ),

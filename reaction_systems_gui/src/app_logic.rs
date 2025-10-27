@@ -363,7 +363,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SystemParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let sys = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -629,14 +629,14 @@ fn process_template(
             }
         },
         | NodeInstruction::BisimilarityKanellakisSmolka => {
-            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
-            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
 
-            match (graph_1, graph_2, grouping) {
+            match (graph_1, graph_2, relabel) {
                 | (
                     BasicValue::Graph { value: graph_1 },
                     BasicValue::Graph { value: graph_2 },
-                    BasicValue::GroupingFunction { value: grouping },
+                    BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
                     let graph_1 = match graph_1.map_edges(&grouping, translator)
@@ -659,13 +659,13 @@ fn process_template(
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
         },
-        | NodeInstruction::GroupFunction => {
+        | NodeInstruction::AssertFunction => {
             let s = retrieve_from_cache![1];
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::assert::AssertParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -678,21 +678,25 @@ fn process_template(
                         }));
                     },
                 };
-                let res = BasicValue::GroupingFunction { value: *res };
+                match res.typecheck() {
+                    Ok(_) => {},
+                    Err(e) => anyhow::bail!(e),
+                };
+                let res = BasicValue::AssertFunction { value: *res };
                 set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a string");
             }
         },
         | NodeInstruction::BisimilarityPaigeTarjanNoLabels => {
-            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
-            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
 
-            match (graph_1, graph_2, grouping) {
+            match (graph_1, graph_2, relabel) {
                 | (
                     BasicValue::Graph { value: graph_1 },
                     BasicValue::Graph { value: graph_2 },
-                    BasicValue::GroupingFunction { value: grouping },
+                    BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
                     let graph_1 = match graph_1.map_edges(&grouping, translator)
@@ -716,14 +720,14 @@ fn process_template(
             }
         },
         | NodeInstruction::BisimilarityPaigeTarjan => {
-            let (graph_1, graph_2, grouping) = retrieve_from_cache![3];
-            let hash_inputs = hash_inputs!(graph_1, graph_2, grouping);
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
 
-            match (graph_1, graph_2, grouping) {
+            match (graph_1, graph_2, relabel) {
                 | (
                     BasicValue::Graph { value: graph_1 },
                     BasicValue::Graph { value: graph_2 },
-                    BasicValue::GroupingFunction { value: grouping },
+                    BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
                     let graph_1 = match graph_1.map_edges(&grouping, translator)
@@ -862,7 +866,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::SeparatorNodeParser::new()
-                        .parse(&mut *translator, &value);
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -888,7 +892,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::SeparatorEdgeParser::new()
-                        .parse(&mut *translator, &value);
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -914,7 +918,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::ColorNodeParser::new()
-                        .parse(&mut *translator, &value);
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -940,7 +944,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::ColorEdgeParser::new()
-                        .parse(&mut *translator, &value);
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1047,7 +1051,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::EnvironmentParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let env = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1072,7 +1076,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SetParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let set = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1097,7 +1101,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ContextParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let context = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1122,7 +1126,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ReactionsParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let reactions = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1469,7 +1473,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveSetParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let set = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1622,7 +1626,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveEnvironmentParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let env = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1647,7 +1651,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveContextParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let context = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1672,7 +1676,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveReactionsParser::new()
-                    .parse(&mut *translator, &value);
+                    .parse(translator, &value);
                 let reactions = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1827,6 +1831,235 @@ fn process_template(
                 set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
+            }
+        },
+        | NodeInstruction::GroupFunction => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::grouping::GroupParser::new()
+                    .parse(translator, &value);
+                let res = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                match res.typecheck() {
+                    Ok(_) => {},
+                    Err(e) => anyhow::bail!(e),
+                };
+                let res = BasicValue::GroupFunction { value: *res };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::GroupNodes => {
+            let (g, grouping) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(g, grouping);
+
+            match (g, grouping) {
+                | (BasicValue::Graph { value: g },
+                   BasicValue::GroupFunction { value: grouping }) =>
+                {
+                    use execution::data;
+                    let mut graph = g.clone();
+                    match data::grouping(&mut graph, &grouping, translator) {
+                        Ok(_) => {},
+                        Err(e) => anyhow::bail!(e),
+                    };
+
+                    let res = BasicValue::Graph { value: graph };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                }
+                | (BasicValue::Graph { value: _ }, _) => anyhow::bail!("Not a group function"),
+                | (_, BasicValue::GroupFunction { value: _ }) => anyhow::bail!("Not a graph"),
+                | _ => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveAssertFunction => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::positive_assert::AssertParser::new()
+                    .parse(translator, &value);
+                let res = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                match res.typecheck() {
+                    Ok(_) => {},
+                    Err(e) => anyhow::bail!(e),
+                };
+                let res = BasicValue::PositiveAssertFunction { value: *res };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::PositiveGroupFunction => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::positive_grouping::GroupParser::new()
+                    .parse(translator, &value);
+                let res = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+                match res.typecheck() {
+                    Ok(_) => {},
+                    Err(e) => anyhow::bail!(e),
+                };
+                let res = BasicValue::PositiveGroupFunction { value: *res };
+                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::PositiveGroupNodes => {
+            let (g, grouping) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(g, grouping);
+
+            match (g, grouping) {
+                | (BasicValue::PositiveGraph { value: g },
+                   BasicValue::PositiveGroupFunction { value: grouping }) =>
+                {
+                    use execution::data;
+                    let mut graph = g.clone();
+                    match data::positive_grouping(&mut graph, &grouping, translator) {
+                        Ok(_) => {},
+                        Err(e) => anyhow::bail!(e),
+                    };
+
+                    let res = BasicValue::PositiveGraph { value: graph };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (BasicValue::PositiveGraph { value: _ }, _) => anyhow::bail!("Not a positive group function"),
+                | (_, BasicValue::PositiveGroupFunction { value: _ }) => anyhow::bail!("Not a positive graph"),
+                | _ => anyhow::bail!("Inputs all wrong"),
+            }
+        },
+        | NodeInstruction::PositiveBisimilarityKanellakisSmolka => {
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
+
+            match (graph_1, graph_2, relabel) {
+                | (
+                    BasicValue::PositiveGraph { value: graph_1 },
+                    BasicValue::PositiveGraph { value: graph_2 },
+                    BasicValue::PositiveAssertFunction { value: grouping },
+                ) => {
+                    use execution::data::PositiveMapEdges;
+                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+
+                    let l = bisimilarity::bisimilarity_kanellakis_smolka::bisimilarity(&&graph_1, &&graph_2);
+                    let res = BasicValue::String {
+                        value: format!("{l}"),
+                    };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
+            }
+        },
+        | NodeInstruction::PositiveBisimilarityPaigeTarjanNoLabels => {
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
+
+            match (graph_1, graph_2, relabel) {
+                | (
+                    BasicValue::PositiveGraph { value: graph_1 },
+                    BasicValue::PositiveGraph { value: graph_2 },
+                    BasicValue::PositiveAssertFunction { value: grouping },
+                ) => {
+                    use execution::data::PositiveMapEdges;
+                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+
+                    let l = bisimilarity::bisimilarity_paige_tarkan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
+                    let res = BasicValue::String {
+                        value: format!("{l}"),
+                    };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
+            }
+        },
+        | NodeInstruction::PositiveBisimilarityPaigeTarjan => {
+            let (graph_1, graph_2, relabel) = retrieve_from_cache![3];
+            let hash_inputs = hash_inputs!(graph_1, graph_2, relabel);
+
+            match (graph_1, graph_2, relabel) {
+                | (
+                    BasicValue::PositiveGraph { value: graph_1 },
+                    BasicValue::PositiveGraph { value: graph_2 },
+                    BasicValue::PositiveAssertFunction { value: grouping },
+                ) => {
+                    use execution::data::PositiveMapEdges;
+                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    {
+                        | Ok(g) => g,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+
+                    let l =
+                        bisimilarity::bisimilarity_paige_tarkan::bisimilarity(
+                            &&graph_1, &&graph_2,
+                        );
+                    let res = BasicValue::String {
+                        value: format!("{l}"),
+                    };
+                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                },
+                | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
         },
         | NodeInstruction::PositiveDot => {
