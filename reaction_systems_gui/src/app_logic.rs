@@ -2344,10 +2344,130 @@ fn process_template(
             }
         },
         | NodeInstruction::PositiveDot => {
-            todo!()
+            let (
+                input_graph,
+                display_node,
+                display_edge,
+                color_node,
+                color_edge,
+            ) = retrieve_from_cache![5];
+
+            let hash_inputs = hash_inputs!(
+                input_graph,
+                display_node,
+                display_edge,
+                color_node,
+                color_edge
+            );
+
+            match (
+                input_graph,
+                display_node,
+                display_edge,
+                color_node,
+                color_edge,
+            ) {
+                | (
+                    BasicValue::PositiveGraph { value: input_graph },
+                    BasicValue::DisplayNode {
+                        value: display_node,
+                    },
+                    BasicValue::DisplayEdge {
+                        value: display_edge,
+                    },
+                    BasicValue::ColorNode { value: color_node },
+                    BasicValue::ColorEdge { value: color_edge },
+                ) => {
+                    use std::rc::Rc;
+
+                    let rc_translator = Rc::new(translator.clone());
+                    let modified_graph = input_graph.map(
+                        display_node.generate_positive(
+                            Rc::clone(&rc_translator),
+                            &input_graph,
+                        ),
+                        display_edge.generate_positive(
+                            Rc::clone(&rc_translator),
+                            &input_graph,
+                        ),
+                    );
+
+                    let input_graph = Rc::new(input_graph.to_owned());
+
+                    let node_formatter = color_node.generate_positive(
+                        Rc::clone(&input_graph),
+                        translator.encode_not_mut("*"),
+                    );
+                    let edge_formatter =
+                        color_edge.generate_positive(Rc::clone(&input_graph));
+
+                    let dot = rsprocess::dot::Dot::with_attr_getters(
+                        &modified_graph,
+                        &[],
+                        &edge_formatter,
+                        &node_formatter,
+                    );
+                    let res = BasicValue::String {
+                        value: format!("{dot}"),
+                    };
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
+                },
+                | _ => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
         },
         | NodeInstruction::PositiveGraphML => {
-            todo!()
+            let (input_graph, display_node, display_edge) =
+                retrieve_from_cache![3];
+            let hash_inputs =
+                hash_inputs!(input_graph, display_node, display_edge);
+
+            match (input_graph, display_node, display_edge) {
+                | (
+                    BasicValue::PositiveGraph { value: input_graph },
+                    BasicValue::DisplayNode {
+                        value: display_node,
+                    },
+                    BasicValue::DisplayEdge {
+                        value: display_edge,
+                    },
+                ) => {
+                    use std::rc::Rc;
+
+                    let rc_translator = Rc::new(translator.clone());
+                    let modified_graph = input_graph.map(
+                        display_node.generate_positive(
+                            Rc::clone(&rc_translator),
+                            &input_graph,
+                        ),
+                        display_edge
+                            .generate_positive(rc_translator, &input_graph),
+                    );
+
+                    use petgraph_graphml::GraphMl;
+                    let graphml = GraphMl::new(&modified_graph)
+                        .pretty_print(true)
+                        .export_node_weights_display()
+                        .export_edge_weights_display();
+
+                    let res = BasicValue::String {
+                        value: format!("{graphml}"),
+                    };
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
+                },
+                | _ => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
         },
     }
     Ok(None)

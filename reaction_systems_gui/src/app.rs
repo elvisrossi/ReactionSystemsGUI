@@ -456,18 +456,6 @@ impl NodeInstruction {
                 ("graph", PositiveGraph),
                 ("grouping", PositiveGroupFunction),
             ],
-            | Self::PositiveDot => vec![
-                ("graph", PositiveGraph),
-                ("display node", DisplayNode),
-                ("display edge", DisplayEdge),
-                ("color node", ColorNode),
-                ("color edge", ColorEdge),
-            ],
-            | Self::PositiveGraphML => vec![
-                ("graph", PositiveGraph),
-                ("display node", DisplayNode),
-                ("display edge", DisplayEdge),
-            ],
             | Self::PositiveBisimilarityKanellakisSmolka => vec![
                 ("first graph", PositiveGraph),
                 ("second graph", PositiveGraph),
@@ -482,6 +470,18 @@ impl NodeInstruction {
                 ("first graph", PositiveGraph),
                 ("second graph", PositiveGraph),
                 ("group", PositiveAssertFunction),
+            ],
+            | Self::PositiveDot => vec![
+                ("graph", PositiveGraph),
+                ("display node", DisplayNode),
+                ("display edge", DisplayEdge),
+                ("color node", ColorNode),
+                ("color edge", ColorEdge),
+            ],
+            | Self::PositiveGraphML => vec![
+                ("graph", PositiveGraph),
+                ("display node", DisplayNode),
+                ("display edge", DisplayEdge),
             ],
         }
         .into_iter()
