@@ -38,15 +38,9 @@ pub fn evaluate_node(
     // populates the cache
     for node_id in to_evaluate {
         let node = &graph[node_id];
-        let outputs = graph[node_id]
-            .user_data
-            .template
-            .output();
+        let outputs = graph[node_id].user_data.template.output();
         let output_names =
-            outputs
-            .iter()
-            .map(|el| el.0.as_str())
-            .collect::<Vec<_>>();
+            outputs.iter().map(|el| el.0.as_str()).collect::<Vec<_>>();
 
         match process_template(
             graph,
@@ -312,7 +306,6 @@ fn process_template(
         );
     }
 
-
     match template {
         | NodeInstruction::String => {
             let s = retrieve_from_cache![1];
@@ -320,7 +313,11 @@ fn process_template(
 
             if let BasicValue::String { value: _ } = s {
                 let res = s;
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -331,7 +328,11 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Path { value };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -352,7 +353,11 @@ fn process_template(
                         })),
                 };
                 let res = BasicValue::String { value: file };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a path");
             }
@@ -377,7 +382,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::System { value: sys };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -390,7 +399,11 @@ fn process_template(
                 let res = BasicValue::String {
                     value: value.statistics(translator),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -422,7 +435,11 @@ fn process_template(
                             Formatter::from(translator, &limit.1)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -462,7 +479,11 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -497,7 +518,11 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -512,7 +537,11 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = BasicValue::Symbol { value };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -533,7 +562,11 @@ fn process_template(
                     Formatter::from(translator, &res)
                 );
                 let res = BasicValue::String { value: output };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -563,7 +596,11 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -588,7 +625,11 @@ fn process_template(
                             })),
                     };
                 let res = BasicValue::Experiment { value };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -619,7 +660,11 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -654,7 +699,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -679,11 +728,15 @@ fn process_template(
                     },
                 };
                 match res.typecheck() {
-                    Ok(_) => {},
-                    Err(e) => anyhow::bail!(e),
+                    | Ok(_) => {},
+                    | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::AssertFunction { value: *res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -714,7 +767,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -748,7 +805,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -763,7 +824,11 @@ fn process_template(
                     | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::Graph { value };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -852,7 +917,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{dot}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -880,7 +949,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::DisplayNode { value: res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -906,7 +979,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::DisplayEdge { value: res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -932,7 +1009,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::ColorNode { value: res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -958,7 +1039,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::ColorEdge { value: res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -997,7 +1082,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{graphml}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -1038,7 +1127,11 @@ fn process_template(
                             Rc::new(reactions),
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -1065,7 +1158,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Environment { value: *env };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1090,7 +1187,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Set { value: set };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1115,7 +1216,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Context { value: context };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1140,7 +1245,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::Reactions { value: reactions };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1153,7 +1262,11 @@ fn process_template(
                 let res = BasicValue::PositiveSystem {
                     value: value.into(),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -1185,7 +1298,11 @@ fn process_template(
                             Formatter::from(translator, &limit.1)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1225,7 +1342,11 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1260,7 +1381,11 @@ fn process_template(
                         ));
                     }
                     let res = BasicValue::String { value: output };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an integer"),
@@ -1283,7 +1408,11 @@ fn process_template(
                     Formatter::from(translator, &res)
                 );
                 let res = BasicValue::String { value: output };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a positive system");
             }
@@ -1314,7 +1443,11 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -1350,7 +1483,11 @@ fn process_template(
                             Formatter::from(translator, &l)
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not an experiment"),
@@ -1380,7 +1517,11 @@ fn process_template(
                         }
                     };
                     let res = BasicValue::Trace { value: trace };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not a positive integer"),
@@ -1410,7 +1551,11 @@ fn process_template(
                         }
                     };
                     let res = BasicValue::PositiveTrace { value: trace };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not a positive integer"),
@@ -1434,7 +1579,11 @@ fn process_template(
                     };
 
                     let res = BasicValue::Trace { value: new_trace };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::Trace { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1458,7 +1607,11 @@ fn process_template(
                     };
 
                     let res = BasicValue::PositiveTrace { value: new_trace };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveTrace { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1487,7 +1640,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::PositiveSet { value: set };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1501,7 +1658,11 @@ fn process_template(
                     value: value
                         .to_positive_set(rsprocess::element::IdState::Positive),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1539,7 +1700,11 @@ fn process_template(
                             Rc::new(reactions),
                         ),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | _ => {
                     anyhow::bail!("Values of wrong type");
@@ -1561,10 +1726,17 @@ fn process_template(
                 let context = BasicValue::Context { value: context };
                 let reactions = BasicValue::Reactions { value: reactions };
 
-
                 set_cache_output!((output_names[0], env, hash_inputs.clone()));
-                set_cache_output!((output_names[1], initial, hash_inputs.clone()));
-                set_cache_output!((output_names[2], context, hash_inputs.clone()));
+                set_cache_output!((
+                    output_names[1],
+                    initial,
+                    hash_inputs.clone()
+                ));
+                set_cache_output!((
+                    output_names[2],
+                    context,
+                    hash_inputs.clone()
+                ));
                 set_cache_output!((output_names[3], reactions, hash_inputs));
             } else {
                 anyhow::bail!("Not a system");
@@ -1583,12 +1755,20 @@ fn process_template(
                 let env = BasicValue::PositiveEnvironment { value: env };
                 let initial = BasicValue::PositiveSet { value: initial };
                 let context = BasicValue::PositiveContext { value: context };
-                let reactions = BasicValue::PositiveReactions { value: reactions };
-
+                let reactions =
+                    BasicValue::PositiveReactions { value: reactions };
 
                 set_cache_output!((output_names[0], env, hash_inputs.clone()));
-                set_cache_output!((output_names[1], initial, hash_inputs.clone()));
-                set_cache_output!((output_names[2], context, hash_inputs.clone()));
+                set_cache_output!((
+                    output_names[1],
+                    initial,
+                    hash_inputs.clone()
+                ));
+                set_cache_output!((
+                    output_names[2],
+                    context,
+                    hash_inputs.clone()
+                ));
                 set_cache_output!((output_names[3], reactions, hash_inputs));
             } else {
                 anyhow::bail!("Not a positive system");
@@ -1602,7 +1782,11 @@ fn process_template(
                 let res = BasicValue::String {
                     value: format!("{}", Formatter::from(translator, &value)),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a trace");
             }
@@ -1615,7 +1799,11 @@ fn process_template(
                 let res = BasicValue::String {
                     value: format!("{}", Formatter::from(translator, &value)),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a positive trace");
             }
@@ -1625,7 +1813,9 @@ fn process_template(
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
-                let res = grammar_separated::grammar::PositiveEnvironmentParser::new()
+                let res =
+                    grammar_separated::grammar::PositiveEnvironmentParser::new(
+                    )
                     .parse(translator, &value);
                 let env = match res {
                     | Ok(s) => s,
@@ -1640,7 +1830,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::PositiveEnvironment { value: *env };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1650,8 +1844,9 @@ fn process_template(
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
-                let res = grammar_separated::grammar::PositiveContextParser::new()
-                    .parse(translator, &value);
+                let res =
+                    grammar_separated::grammar::PositiveContextParser::new()
+                        .parse(translator, &value);
                 let context = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1665,7 +1860,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::PositiveContext { value: context };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1675,8 +1874,9 @@ fn process_template(
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
-                let res = grammar_separated::grammar::PositiveReactionsParser::new()
-                    .parse(translator, &value);
+                let res =
+                    grammar_separated::grammar::PositiveReactionsParser::new()
+                        .parse(translator, &value);
                 let reactions = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1690,7 +1890,11 @@ fn process_template(
                     },
                 };
                 let res = BasicValue::PositiveReactions { value: reactions };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1703,7 +1907,11 @@ fn process_template(
                 let res = BasicValue::PositiveContext {
                     value: value.into(),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a context");
             }
@@ -1716,7 +1924,11 @@ fn process_template(
                 let res = BasicValue::PositiveEnvironment {
                     value: value.into(),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not an environment");
             }
@@ -1727,9 +1939,16 @@ fn process_template(
 
             if let BasicValue::Reactions { value } = s {
                 let res = BasicValue::PositiveReactions {
-                    value: rsprocess::reaction::PositiveReaction::from_reactions(&value),
+                    value:
+                        rsprocess::reaction::PositiveReaction::from_reactions(
+                            &value,
+                        ),
                 };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not reactions");
             }
@@ -1746,7 +1965,11 @@ fn process_template(
                     let mut new_sys = sys.clone();
                     new_sys.overwrite_context_elements(set);
                     let res = BasicValue::System { value: new_sys };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1767,7 +1990,11 @@ fn process_template(
                     let mut new_sys = sys.clone();
                     new_sys.overwrite_product_elements(set);
                     let res = BasicValue::System { value: new_sys };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::System { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1788,7 +2015,11 @@ fn process_template(
                     let mut new_sys = sys.clone();
                     new_sys.overwrite_context_elements(set);
                     let res = BasicValue::PositiveSystem { value: new_sys };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1809,7 +2040,11 @@ fn process_template(
                     let mut new_sys = sys.clone();
                     new_sys.overwrite_product_elements(set);
                     let res = BasicValue::PositiveSystem { value: new_sys };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (BasicValue::PositiveSystem { value: _ }, _) =>
                     anyhow::bail!("Not a set"),
@@ -1828,7 +2063,11 @@ fn process_template(
                     | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::PositiveGraph { value };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a system");
             }
@@ -1853,11 +2092,15 @@ fn process_template(
                     },
                 };
                 match res.typecheck() {
-                    Ok(_) => {},
-                    Err(e) => anyhow::bail!(e),
+                    | Ok(_) => {},
+                    | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::GroupFunction { value: *res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1867,21 +2110,28 @@ fn process_template(
             let hash_inputs = hash_inputs!(g, grouping);
 
             match (g, grouping) {
-                | (BasicValue::Graph { value: g },
-                   BasicValue::GroupFunction { value: grouping }) =>
-                {
+                | (
+                    BasicValue::Graph { value: g },
+                    BasicValue::GroupFunction { value: grouping },
+                ) => {
                     use execution::data;
                     let mut graph = g.clone();
                     match data::grouping(&mut graph, &grouping, translator) {
-                        Ok(_) => {},
-                        Err(e) => anyhow::bail!(e),
+                        | Ok(_) => {},
+                        | Err(e) => anyhow::bail!(e),
                     };
 
                     let res = BasicValue::Graph { value: graph };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
-                }
-                | (BasicValue::Graph { value: _ }, _) => anyhow::bail!("Not a group function"),
-                | (_, BasicValue::GroupFunction { value: _ }) => anyhow::bail!("Not a graph"),
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
+                },
+                | (BasicValue::Graph { value: _ }, _) =>
+                    anyhow::bail!("Not a group function"),
+                | (_, BasicValue::GroupFunction { value: _ }) =>
+                    anyhow::bail!("Not a graph"),
                 | _ => anyhow::bail!("Inputs all wrong"),
             }
         },
@@ -1890,8 +2140,9 @@ fn process_template(
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
-                let res = grammar_separated::positive_assert::AssertParser::new()
-                    .parse(translator, &value);
+                let res =
+                    grammar_separated::positive_assert::AssertParser::new()
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1905,11 +2156,15 @@ fn process_template(
                     },
                 };
                 match res.typecheck() {
-                    Ok(_) => {},
-                    Err(e) => anyhow::bail!(e),
+                    | Ok(_) => {},
+                    | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::PositiveAssertFunction { value: *res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1919,8 +2174,9 @@ fn process_template(
             let hash_inputs = hash_inputs!(s);
 
             if let BasicValue::String { value } = s {
-                let res = grammar_separated::positive_grouping::GroupParser::new()
-                    .parse(translator, &value);
+                let res =
+                    grammar_separated::positive_grouping::GroupParser::new()
+                        .parse(translator, &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1934,11 +2190,15 @@ fn process_template(
                     },
                 };
                 match res.typecheck() {
-                    Ok(_) => {},
-                    Err(e) => anyhow::bail!(e),
+                    | Ok(_) => {},
+                    | Err(e) => anyhow::bail!(e),
                 };
                 let res = BasicValue::PositiveGroupFunction { value: *res };
-                set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
             } else {
                 anyhow::bail!("Not a string");
             }
@@ -1948,21 +2208,30 @@ fn process_template(
             let hash_inputs = hash_inputs!(g, grouping);
 
             match (g, grouping) {
-                | (BasicValue::PositiveGraph { value: g },
-                   BasicValue::PositiveGroupFunction { value: grouping }) =>
-                {
+                | (
+                    BasicValue::PositiveGraph { value: g },
+                    BasicValue::PositiveGroupFunction { value: grouping },
+                ) => {
                     use execution::data;
                     let mut graph = g.clone();
-                    match data::positive_grouping(&mut graph, &grouping, translator) {
-                        Ok(_) => {},
-                        Err(e) => anyhow::bail!(e),
+                    match data::positive_grouping(
+                        &mut graph, &grouping, translator,
+                    ) {
+                        | Ok(_) => {},
+                        | Err(e) => anyhow::bail!(e),
                     };
 
                     let res = BasicValue::PositiveGraph { value: graph };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
-                | (BasicValue::PositiveGraph { value: _ }, _) => anyhow::bail!("Not a positive group function"),
-                | (_, BasicValue::PositiveGroupFunction { value: _ }) => anyhow::bail!("Not a positive graph"),
+                | (BasicValue::PositiveGraph { value: _ }, _) =>
+                    anyhow::bail!("Not a positive group function"),
+                | (_, BasicValue::PositiveGroupFunction { value: _ }) =>
+                    anyhow::bail!("Not a positive graph"),
                 | _ => anyhow::bail!("Inputs all wrong"),
             }
         },
@@ -1992,7 +2261,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -2023,7 +2296,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
@@ -2057,7 +2334,11 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
-                    set_cache_output!((output_names.first().unwrap(), res, hash_inputs));
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        res,
+                        hash_inputs
+                    ));
                 },
                 | (_, _, _) => anyhow::bail!("Invalid inputs to bisimilarity."),
             }
