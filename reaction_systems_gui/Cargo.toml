@@ -8,7 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "*"
-eframe = "0.32"
+eframe = "0.33"
 anyhow = "1"
 serde = { version = "1", optional = true }
 colored = "*"

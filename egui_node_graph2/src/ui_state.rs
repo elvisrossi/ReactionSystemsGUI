@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::scale::Scale;
 
-const MIN_ZOOM: f32 = 0.2;
-const MAX_ZOOM: f32 = 2.0;
+const MIN_ZOOM: f32 = 0.1;
+const MAX_ZOOM: f32 = 2.5;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "persistence", derive(Serialize, Deserialize))]

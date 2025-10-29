@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::num::NonZeroU32;
 
-use egui::epaint::{CornerRadiusF32, CubicBezierShape, RectShape};
+use egui::epaint::{CubicBezierShape, RectShape};
 use egui::*;
 
 use super::*;
@@ -538,7 +538,7 @@ where
                 2.0,
                 bg_color,
                 Stroke::new(3.0, stroke_color),
-                StrokeKind::Middle,
+                StrokeKind::Outside,
             );
 
             self.selected_nodes = node_rects
@@ -583,7 +583,7 @@ where
         }
 
         // Deselect and deactivate finder if the editor background is clicked,
-        // *or* if the the mouse clicks off the ui
+        // *or* if the mouse clicks off the ui
         if click_on_background || (mouse.any_click() && !cursor_in_editor) {
             self.selected_nodes = Vec::new();
             self.node_finder = None;
@@ -614,7 +614,7 @@ fn draw_connection(
     dst_pos: Pos2,
     color: Color32,
 ) {
-    let connection_stroke = egui::Stroke {
+    let connection_stroke = Stroke {
         width: 5.0 * pan_zoom.zoom,
         color,
     };
@@ -664,13 +664,13 @@ where
     ) -> Vec<NodeResponse<UserResponse, NodeData>> {
         let mut child_ui = ui.new_child(
             UiBuilder::new()
-                .id_salt(self.node_id)
+                .layout(Layout::default())
                 .max_rect(Rect::from_min_size(
                     *self.position + self.pan,
                     Self::MAX_NODE_SIZE.into(),
                 ))
-                .layout(Layout::default())
-                .ui_stack_info(UiStackInfo::default()),
+                .id_salt(self.node_id)
+                // .ui_stack_info(UiStackInfo::default()),
         );
 
         Self::show_graph_node(self, pan_zoom, &mut child_ui, user_state)
@@ -684,7 +684,7 @@ where
         ui: &mut Ui,
         user_state: &mut UserState,
     ) -> Vec<NodeResponse<UserResponse, NodeData>> {
-        let margin = egui::vec2(15.0, 5.0) * pan_zoom.zoom;
+        let margin = vec2(15.0, 5.0) * pan_zoom.zoom;
         let mut responses = Vec::<NodeResponse<UserResponse, NodeData>>::new();
 
         let background_color;
@@ -720,7 +720,7 @@ where
             UiBuilder::new()
                 .max_rect(inner_rect)
                 .layout(*ui.layout())
-                .ui_stack_info(UiStackInfo::default()),
+                // .ui_stack_info(UiStackInfo::default()),
         );
 
         // Get interaction rect from memory, it may expand after the window
@@ -821,25 +821,24 @@ where
                         ui.label(param_name);
                     }
 
-                    let height_intermediate = ui.min_rect().bottom();
+                    // let height_intermediate = ui.min_rect().bottom();
 
-                    let max_connections = self.graph[param_id]
-                        .max_connections
-                        .map(NonZeroU32::get)
-                        .unwrap_or(u32::MAX)
-                        as usize;
-                    let port_height = port_height(
-                        max_connections != 1,
-                        self.graph.connections(param_id).len(),
-                        max_connections,
-                    );
-                    let margin = 5.0;
-                    let missing_space = port_height
-                        - (height_intermediate - height_before)
-                        + margin;
-                    if missing_space > 0.0 {
-                        ui.add_space(missing_space);
-                    }
+                    // let max_connections = self.graph[param_id]
+                    //     .max_connections
+                    //     .map(NonZeroU32::get)
+                    //     .unwrap_or(u32::MAX) as usize;
+                    // let port_height = port_height(
+                    //     max_connections != 1,
+                    //     self.graph.connections(param_id).len(),
+                    //     max_connections,
+                    // );
+                    // let margin = 5.0;
+                    // let missing_space = port_height
+                    //     - (height_intermediate - height_before)
+                    //     + margin;
+                    // if missing_space > 0.0 {
+                    //     ui.add_space(missing_space);
+                    // }
 
                     self.graph[self.node_id].user_data.separator(
                         ui,
@@ -945,7 +944,7 @@ where
 
             let port_rect = Rect::from_center_size(
                 port_pos,
-                egui::vec2(
+                vec2(
                     10.0,
                     port_height(wide_port, connections, max_connections),
                 ) * pan_zoom.zoom,
@@ -1135,8 +1134,7 @@ where
                 let max_connections = self.graph[*param]
                     .max_connections
                     .map(NonZeroU32::get)
-                    .unwrap_or(u32::MAX)
-                    as usize;
+                    .unwrap_or(u32::MAX) as usize;
                 draw_port(
                     pan_zoom,
                     ui,
@@ -1188,71 +1186,53 @@ where
 
         let (shape, outline) = {
             let rounding_radius = 4.0 * pan_zoom.zoom;
-            let rounding = CornerRadiusF32::same(rounding_radius);
+            let rounding = CornerRadius::from(rounding_radius);
 
             let titlebar_height = title_height + margin.y;
             let titlebar_rect = Rect::from_min_size(
                 outer_rect.min,
                 vec2(outer_rect.width(), titlebar_height),
             );
-            let titlebar = Shape::Rect(RectShape {
-                rect: titlebar_rect,
-                corner_radius: rounding.into(),
-                fill: self.graph[self.node_id]
-                    .user_data
-                    .titlebar_color(ui, self.node_id, self.graph, user_state)
-                    .unwrap_or_else(|| background_color.lighten(0.8)),
-                stroke: Stroke::NONE,
-                blur_width: 0.0,
-                stroke_kind: StrokeKind::Middle,
-                brush: None,
-                round_to_pixels: None,
-            });
+
+            let title_bar_color = self.graph[self.node_id]
+                .user_data
+                .titlebar_color(ui, self.node_id, self.graph, user_state)
+                .unwrap_or_else(|| background_color.lighten(0.8));
+
+            let titlebar = Shape::Rect(
+                RectShape::filled(titlebar_rect, rounding, title_bar_color)
+                    .with_texture(Default::default(), Rect::ZERO),
+            );
 
             let body_rect = Rect::from_min_size(
                 outer_rect.min + vec2(0.0, titlebar_height - rounding_radius),
                 vec2(outer_rect.width(), outer_rect.height() - titlebar_height),
             );
-            let body = Shape::Rect(RectShape {
-                rect: body_rect,
-                corner_radius: CornerRadius::ZERO,
-                fill: background_color,
-                stroke: Stroke::NONE,
-                blur_width: 0.0,
-                stroke_kind: StrokeKind::Middle,
-                brush: None,
-                round_to_pixels: None,
-            });
+            let body = Shape::Rect(
+                RectShape::filled(body_rect, CornerRadius::ZERO, background_color)
+                    .with_texture(Default::default(), Rect::ZERO),
+            );
 
             let bottom_body_rect = Rect::from_min_size(
                 body_rect.min
                     + vec2(0.0, body_rect.height() - titlebar_height * 0.5),
                 vec2(outer_rect.width(), titlebar_height),
             );
-            let bottom_body = Shape::Rect(RectShape {
-                rect: bottom_body_rect,
-                corner_radius: rounding.into(),
-                fill: background_color,
-                stroke: Stroke::NONE,
-                blur_width: 0.0,
-                stroke_kind: StrokeKind::Middle,
-                brush: None,
-                round_to_pixels: None,
-            });
+            let bottom_body = Shape::Rect(
+                RectShape::filled(bottom_body_rect, rounding, background_color)
+                    .with_texture(Default::default(), Rect::ZERO),
+            );
 
             let node_rect =
                 titlebar_rect.union(body_rect).union(bottom_body_rect);
             let outline = if self.selected {
-                Shape::Rect(RectShape {
-                    rect: node_rect.expand(1.0 * pan_zoom.zoom),
-                    corner_radius: rounding.into(),
-                    fill: Color32::WHITE.lighten(0.8),
-                    stroke: Stroke::NONE,
-                    blur_width: 0.0,
-                    stroke_kind: StrokeKind::Middle,
-                    brush: None,
-                    round_to_pixels: None,
-                })
+                Shape::Rect(
+                    RectShape::filled(
+                        node_rect.expand(1.0 * pan_zoom.zoom),
+                        rounding,
+                        Color32::WHITE.lighten(0.8))
+                        .with_texture(Default::default(), Rect::ZERO)
+                )
             } else {
                 Shape::Noop
             };
