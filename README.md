@@ -28,6 +28,8 @@ A simple script is provided to check for errors during development at [`./reacti
 
 In order to format the code in a uniform way run `cargo +nightly fmt`.
 
+To run the program use `cargo r`; to run the release build use `cargo r --relase`.
+
 ## Native Application
 
 To build simply run `cargo build` or `cargo b`. To build and run `cargo run` or `cargo r`.
@@ -48,7 +50,6 @@ sudo dnf install binaryen # Fedora
 sudo pacman -S binaryen # Arch
 
 brew install binaryen # MacOS
-
 ```
 
 or skip the optimization with the flag `--fast`.
