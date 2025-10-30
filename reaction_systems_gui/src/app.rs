@@ -207,8 +207,8 @@ impl Hash for BasicValue {
             Set,
             Context,
             Reactions,
-            PositiveSystem,
             Trace,
+            PositiveSystem,
             PositiveTrace,
             PositiveSet,
             PositiveEnvironment,
@@ -888,8 +888,8 @@ pub struct GlobalState {
     pub active_node:    Option<NodeId>,
     pub save_node:      Option<NodeId>,
     pub display_result: bool,
-    pub translator:     rsprocess::translator::Translator,
 
+    pub translator:     rsprocess::translator::Translator,
     pub cache: OutputsCache,
 }
 
@@ -1129,10 +1129,9 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveGraph
             | Self::PositiveDot
             | Self::PositiveGraphML
-            | Self::PositiveAssertFunction =>
-                vec!["Positive System", "Positive Graph"],
-            | Self::PositiveGroupFunction | Self::PositiveGroupNodes =>
-                vec!["Positive Graph"],
+            | Self::PositiveAssertFunction
+            | Self::PositiveGroupFunction
+            | Self::PositiveGroupNodes => vec!["Positive Graph"],
             | Self::Trace => vec!["Trace", "System"],
             | Self::PositiveTrace => vec!["Trace", "Positive System"],
             | Self::SliceTrace
@@ -1509,6 +1508,15 @@ pub struct AppHandle {
 const PERSISTENCE_KEY: &str = "egui_node_graph";
 
 #[cfg(feature = "persistence")]
+const TRANSLATOR_KEY: &str = "egui_node_graph_translator";
+
+#[cfg(feature = "persistence")]
+const CACHE_KEY: &str = "egui_node_graph_cache";
+
+#[cfg(feature = "persistence")]
+const VERSION_NUMBER: u64 = 1;
+
+#[cfg(feature = "persistence")]
 impl AppHandle {
     /// If the persistence feature is enabled, Called once before the first
     /// frame. Load previous app state (if any).
@@ -1517,11 +1525,108 @@ impl AppHandle {
             .storage
             .and_then(|storage| eframe::get_value(storage, PERSISTENCE_KEY))
             .unwrap_or_default();
-        Self {
-            state,
-            user_state: GlobalState::default(),
-        }
+        let cache = cc
+            .storage
+            .and_then(|storage| eframe::get_value(storage, CACHE_KEY))
+            .unwrap_or_default();
+        let translator = cc
+            .storage
+            .and_then(|storage| eframe::get_value(storage, TRANSLATOR_KEY))
+            .unwrap_or_default();
+
+        let user_state = GlobalState {
+            cache,
+            translator,
+            ..Default::default()
+        };
+        Self { state, user_state, }
     }
+}
+
+#[cfg(feature = "persistence")]
+fn write_state(
+    state: &str,
+    translator: &str,
+    cache: &str,
+    path: &std::path::PathBuf
+) -> std::io::Result<()> {
+    use std::io::{Write, BufWriter};
+    use std::fs::File;
+
+    let f = File::create(path)?;
+    let mut writer = BufWriter::new(f);
+
+    writer.write_all(&VERSION_NUMBER.to_le_bytes())?;
+    writer.write_all(&(state.len() as u64).to_le_bytes())?;
+    writer.write_all(&(translator.len() as u64).to_le_bytes())?;
+    writer.write_all(&(cache.len() as u64).to_le_bytes())?;
+
+    writer.write_all(state.as_bytes())?;
+    writer.write_all(translator.as_bytes())?;
+    writer.write_all(cache.as_bytes())?;
+
+    Ok(())
+}
+
+#[cfg(feature = "persistence")]
+fn read_state(
+    path: &std::path::PathBuf
+) -> Result<(EditorState, rsprocess::translator::Translator, OutputsCache), String> {
+    use std::io::Read;
+    use std::fs::File;
+    use rsprocess::translator::Translator;
+
+    let mut f = File::open(path).map_err(|e| format!("{e}"))?;
+
+    let version = {
+        let mut buffer = [0; 8];
+        f.read_exact(&mut buffer).map_err(|e| format!("{e}"))?;
+        u64::from_le_bytes(buffer)
+    };
+    if version != VERSION_NUMBER {
+        println!("WARNING: Reading file but version mismatch");
+    }
+
+    let len_state = {
+        let mut buffer = [0; 8];
+        f.read_exact(&mut buffer).map_err(|e| format!("{e}"))?;
+        u64::from_le_bytes(buffer)
+    };
+    let len_translator = {
+        let mut buffer = [0; 8];
+        f.read_exact(&mut buffer).map_err(|e| format!("{e}"))?;
+        u64::from_le_bytes(buffer)
+    };
+    let len_cache = {
+        let mut buffer = [0; 8];
+        f.read_exact(&mut buffer).map_err(|e| format!("{e}"))?;
+        u64::from_le_bytes(buffer)
+    };
+
+    let string_state = {
+        let mut s = Vec::new();
+        s.reserve_exact(len_state as usize);
+        f.by_ref().take(len_state).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        String::from_utf8(s).map_err(|e| format!("{e}"))?
+    };
+    let string_translator = {
+        let mut s = Vec::new();
+        s.reserve_exact(len_translator as usize);
+        f.by_ref().take(len_translator).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        String::from_utf8(s).map_err(|e| format!("{e}"))?
+    };
+    let string_cache = {
+        let mut s = Vec::new();
+        s.reserve_exact(len_cache as usize);
+        f.by_ref().take(len_cache).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        String::from_utf8(s).map_err(|e| format!("{e}"))?
+    };
+
+    let state = ron::from_str::<EditorState>(&string_state).map_err(|e| format!("{e}"))?;
+    let translator = ron::from_str::<Translator>(&string_translator).map_err(|e| format!("{e}"))?;
+    let cache = ron::from_str::<OutputsCache>(&string_cache).map_err(|e| format!("{e}"))?;
+
+    Ok((state, translator, cache))
 }
 
 /// Main endpoint to be executed
@@ -1531,6 +1636,8 @@ impl eframe::App for AppHandle {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, PERSISTENCE_KEY, &self.state);
+        eframe::set_value(storage, TRANSLATOR_KEY, &self.user_state.translator);
+        eframe::set_value(storage, CACHE_KEY, &self.user_state.cache);
     }
 
     /// Called each time the UI needs repainting, which may be many times per
@@ -1571,6 +1678,7 @@ impl eframe::App for AppHandle {
                                     &new_state,
                                 );
                                 self.state = new_state;
+                                self.user_state.cache = Default::default();
                                 ui.close();
                             }
                             if ui.button("Open File…").clicked()
@@ -1578,22 +1686,33 @@ impl eframe::App for AppHandle {
                                     .add_filter("ron", &["ron"])
                                     .pick_file()
                             {
-                                if let Ok(s) = std::fs::read_to_string(path) {
-                                    match ron::from_str::<EditorState>(&s) {
-                                        | Ok(state) => {
-                                            eframe::set_value(
-                                                _frame
-                                                    .storage_mut()
-                                                    .expect("no storage found"),
-                                                PERSISTENCE_KEY,
-                                                &state,
-                                            );
-                                            self.state = state;
-                                        },
-                                        | Err(err) => {
-                                            println!("error {err:?}");
-                                        },
-                                    }
+                                match read_state(&path) {
+                                    Ok((state, translator, cache)) => {
+                                        eframe::set_value(
+                                            _frame
+                                                .storage_mut()
+                                                .expect("no storage found"),
+                                            PERSISTENCE_KEY,
+                                            &state,
+                                        );
+                                        self.state = state;
+
+                                        eframe::set_value(
+                                            _frame
+                                                .storage_mut()
+                                                .expect("no storage found"),
+                                            TRANSLATOR_KEY, &translator,
+                                        );
+                                        self.user_state.translator = translator;
+
+                                        eframe::set_value(
+                                            _frame
+                                                .storage_mut()
+                                                .expect("no storage found"),
+                                            CACHE_KEY, &cache);
+                                        self.user_state.cache = cache;
+                                    },
+                                    Err(e) => println!("Error reading file: {e}"),
                                 }
                                 ui.close();
                             }
@@ -1602,19 +1721,33 @@ impl eframe::App for AppHandle {
                                     .add_filter("ron", &["ron"])
                                     .save_file()
                             {
-                                let value =
+                                let state =
                                     match ron::ser::to_string(&self.state) {
                                         | Ok(value) => value,
                                         | Err(e) => {
-                                            println!("error {e}");
+                                            println!("Error serializing: {e}");
                                             panic!()
                                         },
                                     };
-                                match std::fs::write(path, value) {
-                                    | Ok(_) => {},
-                                    | Err(e) => {
-                                        println!("error saving {e:?}")
-                                    },
+                                let translator =
+                                    match ron::ser::to_string(&self.user_state.translator) {
+                                        | Ok(value) => value,
+                                        | Err(e) => {
+                                            println!("Error serializing: {e}");
+                                            panic!()
+                                        },
+                                    };
+                                let cache =
+                                    match ron::ser::to_string(&self.user_state.cache) {
+                                        | Ok(value) => value,
+                                        | Err(e) => {
+                                            println!("Error serializing: {e}");
+                                            panic!()
+                                        },
+                                    };
+                                match write_state(&state, &translator, &cache, &path) {
+                                    Ok(_) => {},
+                                    Err(e) => println!("Could not save file: {e}"),
                                 }
 
                                 ui.close();
@@ -1751,20 +1884,12 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
                 | Ok(BasicValue::SaveString { path, value }) => {
                     match std::fs::write(&path, value) {
                         | Ok(_) => {
-                            // TODO: this only appears for one frame
                             text.append(
                                 &format!("Wrote file {}.", path),
-                                0.,
-                                TextFormat {
-                                    ..Default::default()
-                                },
-                            );
+                                0., Default::default());
                         },
                         | Err(e) => {
-                            // TODO: this only appears for one frame
-                            text.append(&format!("{e}"), 0., TextFormat {
-                                ..Default::default()
-                            });
+                            text.append(&format!("{e}"), 0., Default::default());
                         },
                     }
                 },
