@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, RwLock};
+use std::thread::JoinHandle;
 
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{self, Color32, TextFormat};
@@ -777,6 +778,12 @@ pub(crate) struct OutputsCache {
     internals: Arc<RwLock<CacheInternals>>,
 }
 
+impl Clone for OutputsCache {
+    fn clone(&self) -> Self {
+        Self { internals: Arc::clone(&self.internals) }
+    }
+}
+
 impl OutputsCache {
     pub(crate) fn calculate_hash<T: std::hash::Hash>(t: &T) -> u64 {
         use std::hash::Hasher;
@@ -1508,13 +1515,15 @@ pub struct AppHandle {
     // its generic parameters.
     state: EditorState,
 
-    user_state: GlobalState,
+    user_state: Arc<RwLock<GlobalState>>,
 
     cache: OutputsCache,
 
     translator: Arc<Mutex<rsprocess::translator::Translator>>,
 
     cached_last_value: Option<LayoutJob>,
+
+    app_logic_thread: Option<JoinHandle<anyhow::Result<()>>>,
 }
 
 #[cfg(feature = "persistence")]
@@ -1547,7 +1556,7 @@ impl AppHandle {
             .and_then(|storage| eframe::get_value(storage, TRANSLATOR_KEY))
             .unwrap_or_default();
 
-        let user_state = GlobalState::default();
+        let user_state = Arc::new(RwLock::new(GlobalState::default()));
         Self { state, user_state, cache, translator, ..Default::default() }
     }
 }
@@ -1792,10 +1801,11 @@ impl eframe::App for AppHandle {
 
         let graph_response = egui::CentralPanel::default()
             .show(ctx, |ui| {
+                let user_state = &mut self.user_state.write().unwrap();
                 self.state.draw_graph_editor(
                     ui,
                     AllInstructions,
-                    &mut self.user_state,
+                    user_state,
                     Vec::default(),
                 )
             })
@@ -1805,20 +1815,23 @@ impl eframe::App for AppHandle {
             // graph events
             match node_response {
                 | NodeResponse::User(CustomResponse::SetActiveNode(node)) => {
-                    self.user_state.active_node = Some(*node);
-                    self.user_state.display_result = true;
+                    let mut user_state = self.user_state.write().unwrap();
+                    user_state.active_node = Some(*node);
+                    user_state.display_result = true;
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::ClearActiveNode) => {
-                    self.user_state.active_node = None;
-                    self.user_state.display_result = false;
+                    let mut user_state = self.user_state.write().unwrap();
+                    user_state.active_node = None;
+                    user_state.display_result = false;
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::SaveToFile(node)) => {
-                    self.user_state.save_node = Some(*node);
-                    self.user_state.display_result = true;
+                    let mut user_state = self.user_state.write().unwrap();
+                    user_state.save_node = Some(*node);
+                    user_state.display_result = true;
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
@@ -1846,83 +1859,144 @@ impl eframe::App for AppHandle {
             }
         }
 
-        if self.user_state.display_result {
+        let display_result = {
+            let user_state = self.user_state.read().unwrap();
+            user_state.display_result
+        };
+        if display_result {
             let mut text = LayoutJob::default();
+            let mut spin = false;
 
             if let Some(l_v) = &self.cached_last_value {
                 text = l_v.clone();
-            } else if let Some(l_b_v) = self.cache.get_last_state() {
-                if let BasicValue::SaveString { path, value } = &l_b_v {
-                    use std::io::Write;
-                    let mut f = match std::fs::File::create(path) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            println!("Error creating file {path}: {e}");
-                            return;
-                        }
-                    };
-                    if let Err(e) = write!(f, "{}", value) {
-                        println!("Error writing to file {path}: {e}");
-                        return;
-                    }
-                }
-                text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
-                self.cached_last_value = Some(text.clone());
             } else {
-                let err = create_output(self, ctx);
-                if let Err(e) = err {
-                    let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
-                    self.cached_last_value = Some(text.clone());
+                // -------------------------------------------------------------
+                // did we start a thread?
+                if self.app_logic_thread.is_none() {
+                    let thread_join_handle = {
+                        let arc_state = Arc::clone(&self.user_state);
+                        let arc_translator = Arc::clone(&self.translator);
+                        let ctx = ctx.clone();
+                        let graph = self.state.graph.clone();
+                        let cache = self.cache.clone();
+                        std::thread::spawn(move || {
+                            create_output(
+                                arc_state,
+                                graph,
+                                &cache,
+                                arc_translator,
+                                &ctx
+                            )
+                        })
+                    };
+                    self.app_logic_thread = Some(thread_join_handle);
+                }
+
+                if self.app_logic_thread.as_ref()
+                    .map(|handle| handle.is_finished())
+                    .unwrap_or(false)
+                {
+                    let handle = std::mem::take(&mut self.app_logic_thread);
+
+                    let err = handle.unwrap().join()
+                        .expect("Could not join thread");
+
+                    if let Err(e) = err {
+                        let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
+                        self.cached_last_value = Some(text.clone());
+                    } else if let Some(l_b_v) = self.cache.get_last_state() {
+                        if let BasicValue::SaveString { path, value } = &l_b_v {
+                            use std::io::Write;
+                            let mut f = match std::fs::File::create(path) {
+                                Ok(f) => f,
+                                Err(e) => {
+                                    println!("Error creating file {path}: {e}");
+                                    return;
+                                }
+                            };
+                            if let Err(e) = write!(f, "{}", value) {
+                                println!("Error writing to file {path}: {e}");
+                                return;
+                            }
+                        }
+                        text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                        self.cached_last_value = Some(text.clone());
+                    }
+                } else {
+                    spin = true;
                 }
             }
 
             let window = egui::SidePanel::right("Results").resizable(true);
 
-            window.show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.heading("Result");
-                    });
+            if spin {
+                window.show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.label(text);
+                        use egui::widgets::Widget;
+                        ui.vertical_centered(|ui| {
+                            ui.heading("Result");
+                        });
+                        egui::widgets::Spinner::new().ui(ui);
                     });
                 });
-            });
+            } else {
+                window.show(ctx, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.heading("Result");
+                        });
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.label(text);
+                        });
+                    });
+                });
+            }
         }
     }
 }
 
 fn create_output(
-    ng: &mut AppHandle,
+    user_state: Arc<RwLock<GlobalState>>,
+    graph: Graph<NodeData, BasicDataType, BasicValue>,
+    cache: &OutputsCache,
+    translator: Arc<Mutex<rsprocess::translator::Translator>>,
     ctx: &egui::Context
 ) -> anyhow::Result<()> {
-    match (ng.user_state.save_node, ng.user_state.active_node) {
-        | (Some(node), _) if ng.state.graph.nodes.contains_key(node) => {
+    let (save_node, active_node) = {
+        let user_state = user_state.read().unwrap();
+        (user_state.save_node, user_state.active_node)
+    };
+
+    match (save_node, active_node) {
+        | (Some(node), _) if graph.nodes.contains_key(node) => {
             crate::app_logic::evaluate_node(
-                &ng.state.graph,
+                &graph,
                 node,
-                &ng.cache,
-                &mut ng.translator.lock().unwrap(),
+                cache,
+                Arc::clone(&translator),
                 ctx,
             )?;
-            ng.user_state.save_node = None;
+            let mut user_state = user_state.write().unwrap();
+            user_state.save_node = None;
         },
-        | (None, Some(node)) if ng.state.graph.nodes.contains_key(node) => {
+        | (None, Some(node)) if graph.nodes.contains_key(node) => {
             crate::app_logic::evaluate_node(
-                &ng.state.graph,
+                &graph,
                 node,
-                &ng.cache,
-                &mut ng.translator.lock().unwrap(),
+                cache,
+                Arc::clone(&translator),
                 ctx,
             )?;
         },
         | (None, None) => {
-            ng.user_state.display_result = false;
+            let mut user_state = user_state.write().unwrap();
+            user_state.display_result = false;
         },
         | (_, _) => {
-            ng.user_state.active_node = None;
-            ng.user_state.save_node = None;
-            ng.user_state.display_result = false;
+            let mut user_state = user_state.write().unwrap();
+            user_state.active_node = None;
+            user_state.save_node = None;
+            user_state.display_result = false;
         },
     }
 

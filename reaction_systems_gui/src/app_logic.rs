@@ -1,5 +1,5 @@
 use std::collections::{HashSet, VecDeque};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use egui_node_graph2::*;
 use rsprocess::frequency::BasicFrequency;
@@ -19,7 +19,7 @@ pub fn evaluate_node(
     graph: &MyGraph,
     node_id: NodeId,
     outputs_cache: &OutputsCache,
-    translator: &mut rsprocess::translator::Translator,
+    translator: Arc<Mutex<rsprocess::translator::Translator>>,
     ctx: &eframe::egui::Context,
 ) -> anyhow::Result<()> {
     // generates list of nodes to evaluate and invalidates cache of those nodes
@@ -48,7 +48,7 @@ pub fn evaluate_node(
             outputs_cache,
             &node.user_data.template,
             output_names,
-            translator,
+            Arc::clone(&translator),
             &mut to_ret,
             ctx,
         )? {
@@ -75,6 +75,7 @@ pub fn evaluate_node(
         let output = outputs_cache.retrieve_output(output_id).unwrap();
         outputs_cache.set_last_state(output);
     }
+    ctx.request_repaint();
     Ok(())
 }
 
@@ -177,7 +178,7 @@ fn process_template(
     outputs_cache: &OutputsCache,
     template: &NodeInstruction,
     output_names: Vec<&str>,
-    translator: &mut rsprocess::translator::Translator,
+    translator: Arc<Mutex<rsprocess::translator::Translator>>,
     to_ret: &mut Option<BasicValue>,
     ctx: &eframe::egui::Context,
 ) -> anyhow::Result<Option<BasicValue>> {
@@ -374,7 +375,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SystemParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let sys = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -403,7 +404,7 @@ fn process_template(
 
             if let BasicValue::System { value } = s {
                 let res = BasicValue::String {
-                    value: value.statistics(translator),
+                    value: value.statistics(&translator.lock().unwrap()),
                 };
                 set_cache_output!((
                     output_names.first().unwrap(),
@@ -438,7 +439,7 @@ fn process_template(
                         value: format!(
                             "After {} steps arrived at state {}",
                             limit.0,
-                            Formatter::from(translator, &limit.1)
+                            Formatter::from(&translator.lock().unwrap(), &limit.1)
                         ),
                     };
                     set_cache_output!((
@@ -481,7 +482,7 @@ fn process_template(
                     for (e, _c, _t) in limit {
                         output.push_str(&format!(
                             "{}",
-                            Formatter::from(translator, &e)
+                            Formatter::from(&translator.lock().unwrap(), &e)
                         ));
                     }
                     let res = BasicValue::String { value: output };
@@ -507,7 +508,7 @@ fn process_template(
                     BasicValue::System { value: sys },
                     BasicValue::Symbol { value: i },
                 ) => {
-                    let s = match translator.encode_not_mut(i) {
+                    let s = match translator.lock().unwrap().encode_not_mut(i) {
                         | Some(s) => s,
                         | None => anyhow::bail!("Symbol not found"),
                     };
@@ -520,7 +521,7 @@ fn process_template(
                     for e in l {
                         output.push_str(&format!(
                             "{}",
-                            Formatter::from(translator, &e)
+                            Formatter::from(&translator.lock().unwrap(), &e)
                         ));
                     }
                     let res = BasicValue::String { value: output };
@@ -565,7 +566,7 @@ fn process_template(
                 };
                 let output = format!(
                     "Frequency of encountered symbols:\n{}",
-                    Formatter::from(translator, &res)
+                    Formatter::from(&translator.lock().unwrap(), &res)
                 );
                 let res = BasicValue::String { value: output };
                 set_cache_output!((
@@ -599,7 +600,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!(
                             "Frequency of encountered symbols:\n{}",
-                            Formatter::from(translator, &l)
+                            Formatter::from(&translator.lock().unwrap(), &l)
                         ),
                     };
                     set_cache_output!((
@@ -622,7 +623,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let value =
                     match grammar_separated::grammar::ExperimentParser::new()
-                        .parse(translator, &value)
+                        .parse(&mut translator.lock().unwrap(), &value)
                     {
                         | Ok(v) => v,
                         | Err(e) =>
@@ -663,7 +664,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!(
                             "Frequency of encountered symbols:\n{}",
-                            Formatter::from(translator, &l)
+                            Formatter::from(&translator.lock().unwrap(), &l)
                         ),
                     };
                     set_cache_output!((
@@ -690,12 +691,12 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -720,7 +721,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::assert::AssertParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -758,12 +759,12 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -793,12 +794,12 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -895,24 +896,23 @@ fn process_template(
                     BasicValue::ColorNode { value: color_node },
                     BasicValue::ColorEdge { value: color_edge },
                 ) => {
-                    use std::rc::Rc;
-
-                    let rc_translator = Rc::new(translator.clone());
+                    let current_translator: rsprocess::translator::Translator = translator.lock().unwrap().clone();
+                    let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
                         display_node
-                            .generate(Rc::clone(&rc_translator), &input_graph),
+                            .generate(Arc::clone(&arc_translator), &input_graph),
                         display_edge
-                            .generate(Rc::clone(&rc_translator), &input_graph),
+                            .generate(Arc::clone(&arc_translator), &input_graph),
                     );
 
-                    let input_graph = Rc::new(input_graph.to_owned());
+                    let input_graph = Arc::new(input_graph.to_owned());
 
                     let node_formatter = color_node.generate(
-                        Rc::clone(&input_graph),
-                        translator.encode_not_mut("*"),
+                        Arc::clone(&input_graph),
+                        arc_translator.encode_not_mut("*"),
                     );
                     let edge_formatter =
-                        color_edge.generate(Rc::clone(&input_graph));
+                        color_edge.generate(Arc::clone(&input_graph));
 
                     let dot = rsprocess::dot::Dot::with_attr_getters(
                         &modified_graph,
@@ -941,7 +941,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::SeparatorNodeParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -971,7 +971,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::SeparatorEdgeParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1001,7 +1001,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::ColorNodeParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1031,7 +1031,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::instructions::ColorEdgeParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1070,13 +1070,12 @@ fn process_template(
                         value: display_edge,
                     },
                 ) => {
-                    use std::rc::Rc;
-
-                    let rc_translator = Rc::new(translator.clone());
+                    let current_translator = translator.lock().unwrap().clone();
+                    let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
                         display_node
-                            .generate(Rc::clone(&rc_translator), &input_graph),
-                        display_edge.generate(rc_translator, &input_graph),
+                            .generate(Arc::clone(&arc_translator), &input_graph),
+                        display_edge.generate(arc_translator, &input_graph),
                     );
 
                     use petgraph_graphml::GraphMl;
@@ -1127,10 +1126,10 @@ fn process_template(
                 ) => {
                     let res = BasicValue::System {
                         value: rsprocess::system::System::from(
-                            Rc::new(env),
+                            Arc::new(env),
                             set,
                             context,
-                            Rc::new(reactions),
+                            Arc::new(reactions),
                         ),
                     };
                     set_cache_output!((
@@ -1150,7 +1149,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::EnvironmentParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let env = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1179,7 +1178,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::SetParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let set = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1208,7 +1207,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ContextParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let context = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1237,7 +1236,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::ReactionsParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let reactions = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1301,7 +1300,7 @@ fn process_template(
                         value: format!(
                             "After {} steps arrived at state {}",
                             limit.0,
-                            Formatter::from(translator, &limit.1)
+                            Formatter::from(&translator.lock().unwrap(), &limit.1)
                         ),
                     };
                     set_cache_output!((
@@ -1344,7 +1343,7 @@ fn process_template(
                     for (e, _c, _t) in limit {
                         output.push_str(&format!(
                             "{}",
-                            Formatter::from(translator, &e)
+                            Formatter::from(&translator.lock().unwrap(), &e)
                         ));
                     }
                     let res = BasicValue::String { value: output };
@@ -1370,7 +1369,7 @@ fn process_template(
                     BasicValue::PositiveSystem { value: sys },
                     BasicValue::Symbol { value: i },
                 ) => {
-                    let s = match translator.encode_not_mut(i) {
+                    let s = match translator.lock().unwrap().encode_not_mut(i) {
                         | Some(s) => s,
                         | None => anyhow::bail!("Symbol not found"),
                     };
@@ -1383,7 +1382,7 @@ fn process_template(
                     for e in l {
                         output.push_str(&format!(
                             "{}",
-                            Formatter::from(translator, &e)
+                            Formatter::from(&translator.lock().unwrap(), &e)
                         ));
                     }
                     let res = BasicValue::String { value: output };
@@ -1411,7 +1410,7 @@ fn process_template(
                 };
                 let output = format!(
                     "Frequency of encountered symbols:\n{}",
-                    Formatter::from(translator, &res)
+                    Formatter::from(&translator.lock().unwrap(), &res)
                 );
                 let res = BasicValue::String { value: output };
                 set_cache_output!((
@@ -1446,7 +1445,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!(
                             "Frequency of encountered symbols:\n{}",
-                            Formatter::from(translator, &l)
+                            Formatter::from(&translator.lock().unwrap(), &l)
                         ),
                     };
                     set_cache_output!((
@@ -1486,7 +1485,7 @@ fn process_template(
                     let res = BasicValue::String {
                         value: format!(
                             "Frequency of encountered symbols:\n{}",
-                            Formatter::from(translator, &l)
+                            Formatter::from(&translator.lock().unwrap(), &l)
                         ),
                     };
                     set_cache_output!((
@@ -1632,7 +1631,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grammar::PositiveSetParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let set = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1700,10 +1699,10 @@ fn process_template(
                 ) => {
                     let res = BasicValue::PositiveSystem {
                         value: rsprocess::system::PositiveSystem::from(
-                            Rc::new(env),
+                            Arc::new(env),
                             set,
                             context,
-                            Rc::new(reactions),
+                            Arc::new(reactions),
                         ),
                     };
                     set_cache_output!((
@@ -1786,7 +1785,7 @@ fn process_template(
 
             if let BasicValue::Trace { value } = trace {
                 let res = BasicValue::String {
-                    value: format!("{}", Formatter::from(translator, &value)),
+                    value: format!("{}", Formatter::from(&translator.lock().unwrap(), &value)),
                 };
                 set_cache_output!((
                     output_names.first().unwrap(),
@@ -1803,7 +1802,7 @@ fn process_template(
 
             if let BasicValue::PositiveTrace { value } = trace {
                 let res = BasicValue::String {
-                    value: format!("{}", Formatter::from(translator, &value)),
+                    value: format!("{}", Formatter::from(&translator.lock().unwrap(), &value)),
                 };
                 set_cache_output!((
                     output_names.first().unwrap(),
@@ -1822,7 +1821,7 @@ fn process_template(
                 let res =
                     grammar_separated::grammar::PositiveEnvironmentParser::new(
                     )
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let env = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1852,7 +1851,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::grammar::PositiveContextParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let context = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -1882,7 +1881,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::grammar::PositiveReactionsParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let reactions = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -2084,7 +2083,7 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = grammar_separated::grouping::GroupParser::new()
-                    .parse(translator, &value);
+                    .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -2122,7 +2121,7 @@ fn process_template(
                 ) => {
                     use execution::data;
                     let mut graph = g.clone();
-                    match data::grouping(&mut graph, &grouping, translator) {
+                    match data::grouping(&mut graph, &grouping, &mut translator.lock().unwrap()) {
                         | Ok(_) => {},
                         | Err(e) => anyhow::bail!(e),
                     };
@@ -2148,7 +2147,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::positive_assert::AssertParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -2182,7 +2181,7 @@ fn process_template(
             if let BasicValue::String { value } = s {
                 let res =
                     grammar_separated::positive_grouping::GroupParser::new()
-                        .parse(translator, &value);
+                        .parse(&mut translator.lock().unwrap(), &value);
                 let res = match res {
                     | Ok(s) => s,
                     | Err(parse_error) => {
@@ -2221,7 +2220,7 @@ fn process_template(
                     use execution::data;
                     let mut graph = g.clone();
                     match data::positive_grouping(
-                        &mut graph, &grouping, translator,
+                        &mut graph, &grouping, &mut translator.lock().unwrap(),
                     ) {
                         | Ok(_) => {},
                         | Err(e) => anyhow::bail!(e),
@@ -2252,12 +2251,12 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2287,12 +2286,12 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2322,12 +2321,12 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, translator)
+                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, translator)
+                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2384,28 +2383,27 @@ fn process_template(
                     BasicValue::ColorNode { value: color_node },
                     BasicValue::ColorEdge { value: color_edge },
                 ) => {
-                    use std::rc::Rc;
-
-                    let rc_translator = Rc::new(translator.clone());
+                    let current_translator = translator.lock().unwrap().clone();
+                    let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
                         display_node.generate_positive(
-                            Rc::clone(&rc_translator),
+                            Arc::clone(&arc_translator),
                             &input_graph,
                         ),
                         display_edge.generate_positive(
-                            Rc::clone(&rc_translator),
+                            Arc::clone(&arc_translator),
                             &input_graph,
                         ),
                     );
 
-                    let input_graph = Rc::new(input_graph.to_owned());
+                    let input_graph = Arc::new(input_graph.to_owned());
 
                     let node_formatter = color_node.generate_positive(
-                        Rc::clone(&input_graph),
-                        translator.encode_not_mut("*"),
+                        Arc::clone(&input_graph),
+                        arc_translator.encode_not_mut("*"),
                     );
                     let edge_formatter =
-                        color_edge.generate_positive(Rc::clone(&input_graph));
+                        color_edge.generate_positive(Arc::clone(&input_graph));
 
                     let dot = rsprocess::dot::Dot::with_attr_getters(
                         &modified_graph,
@@ -2443,16 +2441,15 @@ fn process_template(
                         value: display_edge,
                     },
                 ) => {
-                    use std::rc::Rc;
-
-                    let rc_translator = Rc::new(translator.clone());
+                    let current_translator = translator.lock().unwrap().clone();
+                    let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
                         display_node.generate_positive(
-                            Rc::clone(&rc_translator),
+                            Arc::clone(&arc_translator),
                             &input_graph,
                         ),
                         display_edge
-                            .generate_positive(rc_translator, &input_graph),
+                            .generate_positive(arc_translator, &input_graph),
                     );
 
                     use petgraph_graphml::GraphMl;
