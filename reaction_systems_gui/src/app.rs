@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
-use eframe::egui::text::{LayoutJob, LayoutSection};
+use eframe::egui::text::LayoutJob;
 use eframe::egui::{self, Color32, TextFormat};
 use egui_node_graph2::*;
 use rsprocess::translator::Formatter;
@@ -16,6 +16,7 @@ use rsprocess::translator::Formatter;
 // ========= First, define your user data types =============
 
 /// The NodeData holds the data available in each node.
+#[derive(Copy, Clone)]
 #[cfg_attr(
     feature = "persistence",
     derive(serde::Serialize, serde::Deserialize)
@@ -26,7 +27,7 @@ pub struct NodeData {
 
 /// `BasicDataType`'s are what defines the possible range of connections when
 /// attaching two ports together.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 #[cfg_attr(
     feature = "persistence",
     derive(serde::Serialize, serde::Deserialize)
@@ -761,7 +762,7 @@ struct CacheInternals {
     values:      HashMap<OutputId, BasicValue>,
     hash_values: HashMap<OutputId, u64>,
     hash_inputs: HashMap<OutputId, (u64, Vec<u64>)>,
-    last_output: Option<LayoutJob>,
+    last_output: Option<BasicValue>,
 }
 
 /// Cache used to save intermediate values between executions.
@@ -860,22 +861,22 @@ impl OutputsCache {
     }
 
     #[allow(dead_code)]
-    pub fn reset_cache(&mut self) {
+    pub fn reset_cache(&self) {
         let mut internals = self.internals.write().unwrap();
         *internals = CacheInternals::default();
     }
 
-    pub fn get_last_state(&self) -> Option<LayoutJob> {
+    pub fn get_last_state(&self) -> Option<BasicValue> {
         let internals = self.internals.read().unwrap();
         internals.last_output.clone()
     }
 
-    pub fn invalidate_last_state(&mut self) {
+    pub fn invalidate_last_state(&self) {
         let mut internals = self.internals.write().unwrap();
         internals.last_output = None;
     }
 
-    pub fn set_last_state(&mut self, val: LayoutJob) {
+    pub fn set_last_state(&self, val: BasicValue) {
         let mut internals = self.internals.write().unwrap();
         internals.last_output = Some(val);
     }
@@ -891,9 +892,6 @@ pub struct GlobalState {
     pub active_node:    Option<NodeId>,
     pub save_node:      Option<NodeId>,
     pub display_result: bool,
-
-    pub translator:     rsprocess::translator::Translator,
-    pub cache: OutputsCache,
 }
 
 // Display instructions for each of the data types
@@ -1307,7 +1305,10 @@ impl WidgetValueTrait for BasicValue {
                 ui.label(param_name);
             },
             | BasicValue::PositiveInt { value } => {
-                ui.add(egui::DragValue::new(value));
+                let field = ui.add(egui::DragValue::new(value));
+                if field.changed() {
+                    responses.push(CustomResponse::FieldModified(node_id));
+                }
             },
             | BasicValue::Symbol { value } => {
                 ui.label(param_name);
@@ -1503,11 +1504,17 @@ type EditorState = GraphEditorState<
 
 #[derive(Default)]
 pub struct AppHandle {
-    // The `GraphEditorState` is the top-level object. You "register" all your
-    // custom types by specifying it as its generic parameters.
+    // The top-level object. "register" all custom types by specifying it as
+    // its generic parameters.
     state: EditorState,
 
     user_state: GlobalState,
+
+    cache: OutputsCache,
+
+    translator: Arc<Mutex<rsprocess::translator::Translator>>,
+
+    cached_last_value: Option<LayoutJob>,
 }
 
 #[cfg(feature = "persistence")]
@@ -1540,12 +1547,8 @@ impl AppHandle {
             .and_then(|storage| eframe::get_value(storage, TRANSLATOR_KEY))
             .unwrap_or_default();
 
-        let user_state = GlobalState {
-            cache,
-            translator,
-            ..Default::default()
-        };
-        Self { state, user_state, }
+        let user_state = GlobalState::default();
+        Self { state, user_state, cache, translator, ..Default::default() }
     }
 }
 
@@ -1642,8 +1645,8 @@ impl eframe::App for AppHandle {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, PERSISTENCE_KEY, &self.state);
-        eframe::set_value(storage, TRANSLATOR_KEY, &self.user_state.translator);
-        eframe::set_value(storage, CACHE_KEY, &self.user_state.cache);
+        eframe::set_value(storage, TRANSLATOR_KEY, &self.translator);
+        eframe::set_value(storage, CACHE_KEY, &self.cache);
     }
 
     /// Called each time the UI needs repainting, which may be many times per
@@ -1684,7 +1687,7 @@ impl eframe::App for AppHandle {
                                     &new_state,
                                 );
                                 self.state = new_state;
-                                self.user_state.cache = Default::default();
+                                self.cache = Default::default();
                                 ui.close();
                             }
                             if ui.button("Open File…").clicked()
@@ -1709,14 +1712,14 @@ impl eframe::App for AppHandle {
                                                 .expect("no storage found"),
                                             TRANSLATOR_KEY, &translator,
                                         );
-                                        self.user_state.translator = translator;
+                                        self.translator = Arc::new(Mutex::new(translator));
 
                                         eframe::set_value(
                                             _frame
                                                 .storage_mut()
                                                 .expect("no storage found"),
                                             CACHE_KEY, &cache);
-                                        self.user_state.cache = cache;
+                                        self.cache = cache;
                                     },
                                     Err(e) => println!("Error reading file: {e}"),
                                 }
@@ -1736,7 +1739,7 @@ impl eframe::App for AppHandle {
                                         },
                                     };
                                 let translator =
-                                    match ron::ser::to_string(&self.user_state.translator) {
+                                    match ron::ser::to_string(&self.translator) {
                                         | Ok(value) => value,
                                         | Err(e) => {
                                             println!("Error serializing: {e}");
@@ -1744,7 +1747,7 @@ impl eframe::App for AppHandle {
                                         },
                                     };
                                 let cache =
-                                    match ron::ser::to_string(&self.user_state.cache) {
+                                    match ron::ser::to_string(&self.cache) {
                                         | Ok(value) => value,
                                         | Err(e) => {
                                             println!("Error serializing: {e}");
@@ -1779,7 +1782,7 @@ impl eframe::App for AppHandle {
                         .id(egui::Id::new("cache"))
                         .show(|ui| {
                             if ui.button("Clear").clicked() {
-                                self.user_state.cache.reset_cache();
+                                self.cache.reset_cache();
                                 ui.close();
                             }
                         });
@@ -1804,65 +1807,81 @@ impl eframe::App for AppHandle {
                 | NodeResponse::User(CustomResponse::SetActiveNode(node)) => {
                     self.user_state.active_node = Some(*node);
                     self.user_state.display_result = true;
-                    self.user_state.cache.invalidate_last_state();
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::ClearActiveNode) => {
                     self.user_state.active_node = None;
                     self.user_state.display_result = false;
-                    self.user_state.cache.invalidate_last_state();
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::SaveToFile(node)) => {
                     self.user_state.save_node = Some(*node);
                     self.user_state.display_result = true;
-                    self.user_state.cache.invalidate_last_state();
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::FieldModified(node)) => {
-                    self.user_state.cache.invalidate_last_state();
-                    self.user_state
-                        .cache
+                    self.cache
                         .invalidate_outputs(&self.state.graph, *node);
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | NodeResponse::DisconnectEvent { output, input: _ } => {
-                    self.user_state.cache.invalidate_cache(output);
+                    self.cache.invalidate_cache(output);
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | NodeResponse::ConnectEventEnded {
                     output,
                     input: _,
                     input_hook: _,
                 } => {
-                    self.user_state.cache.invalidate_cache(output);
+                    self.cache.invalidate_cache(output);
+                    self.cache.invalidate_last_state();
+                    self.cached_last_value = None;
                 },
                 | _ => {},
             }
         }
 
         if self.user_state.display_result {
-            let text = {
-                if !graph_response.node_responses.is_empty() {
-                    let computed_output = create_output(self, ctx);
-                    self.user_state
-                        .cache
-                        .set_last_state(computed_output.clone());
-                    computed_output
-                } else if let Some(pre_computed) =
-                    self.user_state.cache.get_last_state()
-                {
-                    pre_computed
-                } else {
-                    let computed_output = create_output(self, ctx);
-                    self.user_state
-                        .cache
-                        .set_last_state(computed_output.clone());
-                    computed_output
+            let mut text = LayoutJob::default();
+
+            if let Some(l_v) = &self.cached_last_value {
+                text = l_v.clone();
+            } else if let Some(l_b_v) = self.cache.get_last_state() {
+                if let BasicValue::SaveString { path, value } = &l_b_v {
+                    use std::io::Write;
+                    let mut f = match std::fs::File::create(path) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            println!("Error creating file {path}: {e}");
+                            return;
+                        }
+                    };
+                    if let Err(e) = write!(f, "{}", value) {
+                        println!("Error writing to file {path}: {e}");
+                        return;
+                    }
                 }
-            };
+                text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                self.cached_last_value = Some(text.clone());
+            } else {
+                let err = create_output(self, ctx);
+                if let Err(e) = err {
+                    let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
+                    self.cached_last_value = Some(text.clone());
+                }
+            }
 
             let window = egui::SidePanel::right("Results").resizable(true);
 
             window.show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        ui.heading("Results");
+                        ui.heading("Result");
                     });
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.label(text);
@@ -1873,67 +1892,29 @@ impl eframe::App for AppHandle {
     }
 }
 
-fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
-    let mut text = LayoutJob::default();
-
+fn create_output(
+    ng: &mut AppHandle,
+    ctx: &egui::Context
+) -> anyhow::Result<()> {
     match (ng.user_state.save_node, ng.user_state.active_node) {
         | (Some(node), _) if ng.state.graph.nodes.contains_key(node) => {
-            let value = crate::app_logic::evaluate_node(
+            crate::app_logic::evaluate_node(
                 &ng.state.graph,
                 node,
-                &ng.user_state.cache,
-                &mut ng.user_state.translator,
+                &ng.cache,
+                &mut ng.translator.lock().unwrap(),
                 ctx,
-            );
+            )?;
             ng.user_state.save_node = None;
-            match value {
-                | Ok(BasicValue::SaveString { path, value }) => {
-                    match std::fs::write(&path, value) {
-                        | Ok(_) => {
-                            text.append(
-                                &format!("Wrote file {}.", path),
-                                0., Default::default());
-                        },
-                        | Err(e) => {
-                            text.append(&format!("{e}"), 0., Default::default());
-                        },
-                    }
-                },
-                | Err(_) => {
-                    text = get_layout(value, &ng.user_state.translator, ctx);
-                },
-                | Ok(_) => {
-                    text = get_layout(value, &ng.user_state.translator, ctx);
-                    {
-                        // prepend doesnt exist for layoutjob
-                        let new_text = "Could not save invalid value:";
-                        let start = 0;
-                        text.text.insert_str(0, new_text);
-                        let byte_range = start..new_text.len();
-                        text.sections.insert(0, LayoutSection {
-                            leading_space: 0.,
-                            byte_range,
-                            format: TextFormat {
-                                color: Color32::RED,
-                                ..Default::default()
-                            },
-                        });
-                    }
-                },
-            }
         },
         | (None, Some(node)) if ng.state.graph.nodes.contains_key(node) => {
-            text = get_layout(
-                crate::app_logic::evaluate_node(
-                    &ng.state.graph,
-                    node,
-                    &ng.user_state.cache,
-                    &mut ng.user_state.translator,
-                    ctx,
-                ),
-                &ng.user_state.translator,
+            crate::app_logic::evaluate_node(
+                &ng.state.graph,
+                node,
+                &ng.cache,
+                &mut ng.translator.lock().unwrap(),
                 ctx,
-            );
+            )?;
         },
         | (None, None) => {
             ng.user_state.display_result = false;
@@ -1945,7 +1926,7 @@ fn create_output(ng: &mut AppHandle, ctx: &egui::Context) -> LayoutJob {
         },
     }
 
-    text
+    Ok(())
 }
 
 fn get_layout(
@@ -1959,8 +1940,7 @@ fn get_layout(
         | Ok(value) => match value {
             | BasicValue::SaveString { path, value: _ } => text.append(
                 &format!("Saving to file \"{}\"", path),
-                0.,
-                Default::default(),
+                0., Default::default(),
             ),
             | BasicValue::Error { value } => {
                 text = value;
@@ -1972,8 +1952,7 @@ fn get_layout(
                 text.append(&value, 0., Default::default()),
             | BasicValue::System { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0.,
-                Default::default(),
+                0., Default::default(),
             ),
             | BasicValue::PositiveInt { value } =>
                 text.append(&format!("{value}"), 0., Default::default()),

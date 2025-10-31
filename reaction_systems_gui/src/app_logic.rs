@@ -21,7 +21,7 @@ pub fn evaluate_node(
     outputs_cache: &OutputsCache,
     translator: &mut rsprocess::translator::Translator,
     ctx: &eframe::egui::Context,
-) -> anyhow::Result<BasicValue> {
+) -> anyhow::Result<()> {
     // generates list of nodes to evaluate and invalidates cache of those nodes
     let to_evaluate = generate_to_evaluate(graph, outputs_cache, node_id)?;
 
@@ -53,12 +53,15 @@ pub fn evaluate_node(
             ctx,
         )? {
             | None => {},
-            | Some(val) => return Ok(val),
+            | Some(val) => {
+                outputs_cache.set_last_state(val);
+                return Ok(())
+            },
         }
     }
 
     if let Some(res) = to_ret.take() {
-        Ok(res)
+        outputs_cache.set_last_state(res);
     } else {
         let output_field = graph[node_id]
             .user_data
@@ -69,8 +72,10 @@ pub fn evaluate_node(
             .unwrap_or("".into());
         let output_id = graph[node_id].get_output(&output_field)?;
 
-        Ok(outputs_cache.retrieve_output(output_id).unwrap())
+        let output = outputs_cache.retrieve_output(output_id).unwrap();
+        outputs_cache.set_last_state(output);
     }
+    Ok(())
 }
 
 fn generate_to_evaluate(
