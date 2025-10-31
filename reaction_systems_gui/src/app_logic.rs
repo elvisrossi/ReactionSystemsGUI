@@ -2473,19 +2473,24 @@ fn process_template(
             }
         },
         | NodeInstruction::Sleep => {
-            let input_seconds = retrieve_from_cache![1];
-            let hash_inputs = hash_inputs!(input_seconds);
+            #[cfg(not(target_arch = "wasm32"))] {
+                let input_seconds = retrieve_from_cache![1];
+                let hash_inputs = hash_inputs!(input_seconds);
 
-            if let BasicValue::PositiveInt { value } = input_seconds {
-                std::thread::sleep(std::time::Duration::from_secs(value as u64));
+                if let BasicValue::PositiveInt { value: _value } = input_seconds {
+                    std::thread::sleep(std::time::Duration::from_secs(_value as u64));
 
-                set_cache_output!((
-                    output_names.first().unwrap(),
-                    input_seconds,
-                    hash_inputs
-                ));
-            } else {
-                anyhow::bail!("Not an integer");
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        input_seconds,
+                        hash_inputs
+                    ));
+                } else {
+                    anyhow::bail!("Not an integer");
+                }
+            }
+            #[cfg(target_arch = "wasm32")] {
+                anyhow::bail!("Cannot sleep on wams");
             }
         }
     }

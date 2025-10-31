@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, RwLock};
-use std::thread::JoinHandle;
 
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{self, Color32, TextFormat};
@@ -1509,6 +1508,9 @@ type EditorState = GraphEditorState<
     GlobalState,
 >;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread::JoinHandle;
+
 #[derive(Default)]
 pub struct AppHandle {
     // The top-level object. "register" all custom types by specifying it as
@@ -1523,6 +1525,7 @@ pub struct AppHandle {
 
     cached_last_value: Option<LayoutJob>,
 
+    #[cfg(not(target_arch = "wasm32"))]
     app_logic_thread: Option<JoinHandle<anyhow::Result<()>>>,
 }
 
@@ -1536,6 +1539,7 @@ const TRANSLATOR_KEY: &str = "egui_node_graph_translator";
 const CACHE_KEY: &str = "egui_node_graph_cache";
 
 #[cfg(feature = "persistence")]
+#[cfg(not(target_arch = "wasm32"))]
 const VERSION_NUMBER: u64 = 1;
 
 #[cfg(feature = "persistence")]
@@ -1562,6 +1566,7 @@ impl AppHandle {
 }
 
 #[cfg(feature = "persistence")]
+#[cfg(not(target_arch = "wasm32"))]
 fn write_state(
     state: &str,
     translator: &str,
@@ -1587,6 +1592,7 @@ fn write_state(
 }
 
 #[cfg(feature = "persistence")]
+#[cfg(not(target_arch = "wasm32"))]
 fn read_state(
     path: &std::path::PathBuf
 ) -> Result<(EditorState, rsprocess::translator::Translator, OutputsCache), String> {
@@ -1870,37 +1876,73 @@ impl eframe::App for AppHandle {
             if let Some(l_v) = &self.cached_last_value {
                 text = l_v.clone();
             } else {
-                // -------------------------------------------------------------
-                // did we start a thread?
-                if self.app_logic_thread.is_none() {
-                    let thread_join_handle = {
-                        let arc_state = Arc::clone(&self.user_state);
-                        let arc_translator = Arc::clone(&self.translator);
-                        let ctx = ctx.clone();
-                        let graph = self.state.graph.clone();
-                        let cache = self.cache.clone();
-                        std::thread::spawn(move || {
-                            create_output(
-                                arc_state,
-                                graph,
-                                &cache,
-                                arc_translator,
-                                &ctx
-                            )
-                        })
-                    };
-                    self.app_logic_thread = Some(thread_join_handle);
+                #[cfg(not(target_arch = "wasm32"))] {
+                    // wasm does not support threads :-(
+                    // -------------------------------------------------------------
+                    // did we already start a thread?
+                    if self.app_logic_thread.is_none() {
+                        let thread_join_handle = {
+                            let arc_state = Arc::clone(&self.user_state);
+                            let arc_translator = Arc::clone(&self.translator);
+                            let ctx = ctx.clone();
+                            let graph = self.state.graph.clone();
+                            let cache = self.cache.clone();
+                            std::thread::spawn(move || {
+                                create_output(
+                                    arc_state,
+                                    graph,
+                                    &cache,
+                                    arc_translator,
+                                    &ctx
+                                )
+                            })
+                        };
+                        self.app_logic_thread = Some(thread_join_handle);
+                    }
+
+                    if self.app_logic_thread.as_ref()
+                        .map(|handle| handle.is_finished())
+                        .unwrap_or(false)
+                    {
+                        let handle = std::mem::take(&mut self.app_logic_thread);
+
+                        let err = handle.unwrap().join()
+                            .expect("Could not join thread");
+
+                        if let Err(e) = err {
+                            let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
+                            self.cached_last_value = Some(text.clone());
+                        } else if let Some(l_b_v) = self.cache.get_last_state() {
+                            if let BasicValue::SaveString { path, value } = &l_b_v {
+                                use std::io::Write;
+                                let mut f = match std::fs::File::create(path) {
+                                    Ok(f) => f,
+                                    Err(e) => {
+                                        println!("Error creating file {path}: {e}");
+                                        return;
+                                    }
+                                };
+                                if let Err(e) = write!(f, "{}", value) {
+                                    println!("Error writing to file {path}: {e}");
+                                    return;
+                                }
+                            }
+                            text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                            self.cached_last_value = Some(text.clone());
+                        }
+                    } else {
+                        spin = true;
+                    }
                 }
 
-                if self.app_logic_thread.as_ref()
-                    .map(|handle| handle.is_finished())
-                    .unwrap_or(false)
-                {
-                    let handle = std::mem::take(&mut self.app_logic_thread);
-
-                    let err = handle.unwrap().join()
-                        .expect("Could not join thread");
-
+                #[cfg(target_arch = "wasm32")] {
+                    let err = create_output(
+                        Arc::clone(&self.user_state),
+                        self.state.graph.clone(),
+                        &self.cache,
+                        Arc::clone(&self.translator),
+                        &ctx
+                    );
                     if let Err(e) = err {
                         let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
                         self.cached_last_value = Some(text.clone());
@@ -1922,8 +1964,7 @@ impl eframe::App for AppHandle {
                         text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
                         self.cached_last_value = Some(text.clone());
                     }
-                } else {
-                    spin = true;
+                    spin = false;
                 }
             }
 
