@@ -109,11 +109,12 @@ fn generate_to_evaluate(
             continue;
         }
 
-        let first_output = if let Some(o) = graph[n_id].output_ids().next() {
-            o
-        } else {
-            continue;
-        };
+        let first_output =
+            if let Some(o) = graph[n_id].output_ids().next() {
+                o
+            } else {
+                continue;
+            };
         let hashes =
             if let Some(hashes) = outputs_cache.input_hashes(&first_output) {
                 hashes
@@ -2469,6 +2470,22 @@ fn process_template(
                 },
             }
         },
+        | NodeInstruction::Sleep => {
+            let input_seconds = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(input_seconds);
+
+            if let BasicValue::PositiveInt { value } = input_seconds {
+                std::thread::sleep(std::time::Duration::from_secs(value as u64));
+
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    input_seconds,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not an integer");
+            }
+        }
     }
     Ok(None)
 }

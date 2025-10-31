@@ -256,6 +256,7 @@ pub enum NodeInstruction {
     Path,
     ReadPath,
     SaveString,
+    Sleep,
 
     // create basic data types
     Symbol,
@@ -483,6 +484,7 @@ impl NodeInstruction {
                 ("display node", DisplayNode),
                 ("display edge", DisplayEdge),
             ],
+            | Self::Sleep => vec![("seconds", PositiveInt)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -577,6 +579,7 @@ impl NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjanNoLabels =>
                 vec![("out", String)],
             | Self::PositiveBisimilarityPaigeTarjan => vec![("out", String)],
+            | Self::Sleep => vec![("out", PositiveInt)],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -1061,6 +1064,7 @@ impl NodeTemplateTrait for NodeInstruction {
                 "Positive Paige & Torjan (ignore labels)",
             | Self::PositiveBisimilarityPaigeTarjan =>
                 "Positive Paige & Torjan",
+            | Self::Sleep => "Sleep",
         })
     }
 
@@ -1142,6 +1146,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjanNoLabels
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
+            | Self::Sleep => vec!["General"],
         }
     }
 
@@ -1246,6 +1251,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveBisimilarityKanellakisSmolka,
             NodeInstruction::PositiveBisimilarityPaigeTarjanNoLabels,
             NodeInstruction::PositiveBisimilarityPaigeTarjan,
+            NodeInstruction::Sleep,
         ]
     }
 }
