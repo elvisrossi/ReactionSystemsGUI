@@ -63,6 +63,7 @@ pub enum BasicDataType {
     PositiveGraph,
     PositiveAssertFunction,
     PositiveGroupFunction,
+    Svg,
 }
 
 /// Should reflect `BasicDataType`'s values, holding the data that will be
@@ -175,6 +176,9 @@ pub enum BasicValue {
     PositiveGroupFunction {
         value: assert::positive_grouping::PositiveAssert,
     },
+    Svg {
+        value: super::svg::Svg,
+    },
 }
 
 impl Hash for BasicValue {
@@ -216,7 +220,8 @@ impl Hash for BasicValue {
             PositiveContext,
             PositiveReactions,
             PositiveAssertFunction,
-            PositiveGroupFunction
+            PositiveGroupFunction,
+            Svg
         );
 
         match self {
@@ -278,6 +283,7 @@ pub enum NodeInstruction {
     DisplayEdge,
     ColorNode,
     ColorEdge,
+    StringToSvg,
 
     // convert basic data types
     ToPositiveSet,
@@ -486,6 +492,7 @@ impl NodeInstruction {
                 ("display edge", DisplayEdge),
             ],
             | Self::Sleep => vec![("seconds", PositiveInt)],
+            | Self::StringToSvg => vec![("value", String)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -581,6 +588,7 @@ impl NodeInstruction {
                 vec![("out", String)],
             | Self::PositiveBisimilarityPaigeTarjan => vec![("out", String)],
             | Self::Sleep => vec![("out", PositiveInt)],
+            | Self::StringToSvg => vec![("out", Svg)],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -684,6 +692,10 @@ impl NodeInstruction {
                 PositiveGroupFunction,
                 assert::positive_grouping::PositiveAssert::default()
             ),
+            | BasicDataType::Svg => helper!(
+                Svg,
+                super::svg::Svg::default()
+            )
         }
     }
 
@@ -739,6 +751,8 @@ impl NodeInstruction {
                 helper!(PositiveAssertFunction),
             | BasicDataType::PositiveGroupFunction =>
                 helper!(PositiveGroupFunction),
+            | BasicDataType::Svg =>
+                helper!(Svg),
         }
     }
 }
@@ -935,6 +949,8 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
                 egui::Color32::from_rgb(200, 150, 120),
             | Self::PositiveGroupFunction =>
                 egui::Color32::from_rgb(150, 120, 200),
+            | Self::Svg =>
+                egui::Color32::from_rgb(200, 200, 240),
         }
     }
 
@@ -972,6 +988,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
                 Cow::Borrowed("positive assert function"),
             | Self::PositiveGroupFunction =>
                 Cow::Borrowed("positive group function"),
+            | Self::Svg => Cow::Borrowed("Svg"),
         }
     }
 }
@@ -1069,6 +1086,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjan =>
                 "Positive Paige & Torjan",
             | Self::Sleep => "Sleep",
+            | Self::StringToSvg => "String to SVG",
         })
     }
 
@@ -1150,7 +1168,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjanNoLabels
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
-            | Self::Sleep => vec!["General"],
+            | Self::Sleep
+            | Self::StringToSvg => vec!["General"],
         }
     }
 
@@ -1256,6 +1275,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveBisimilarityPaigeTarjanNoLabels,
             NodeInstruction::PositiveBisimilarityPaigeTarjan,
             NodeInstruction::Sleep,
+            NodeInstruction::StringToSvg,
         ]
     }
 }
@@ -1395,6 +1415,9 @@ impl WidgetValueTrait for BasicValue {
             | BasicValue::PositiveGroupFunction { value: _ } => {
                 ui.label(param_name);
             },
+            | BasicValue::Svg { value: _ } => {
+                ui.label(param_name);
+            }
         }
 
         responses
@@ -1523,7 +1546,7 @@ pub struct AppHandle {
 
     translator: Arc<Mutex<rsprocess::translator::Translator>>,
 
-    cached_last_value: Option<LayoutJob>,
+    cached_last_value: Option<WidgetLayout>,
 
     #[cfg(not(target_arch = "wasm32"))]
     app_logic_thread: Option<JoinHandle<anyhow::Result<()>>>,
@@ -1870,15 +1893,15 @@ impl eframe::App for AppHandle {
             user_state.display_result
         };
         if display_result {
-            let mut text = LayoutJob::default();
+            let mut content = WidgetLayout::default();
             let mut spin = false;
 
             if let Some(l_v) = &self.cached_last_value {
-                text = l_v.clone();
+                content = l_v.clone();
             } else {
                 #[cfg(not(target_arch = "wasm32"))] {
                     // wasm does not support threads :-(
-                    // -------------------------------------------------------------
+                    // ---------------------------------------------------------
                     // did we already start a thread?
                     if self.app_logic_thread.is_none() {
                         let thread_join_handle = {
@@ -1911,7 +1934,7 @@ impl eframe::App for AppHandle {
 
                         if let Err(e) = err {
                             let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
-                            self.cached_last_value = Some(text.clone());
+                            self.cached_last_value = Some(text);
                         } else if let Some(l_b_v) = self.cache.get_last_state() {
                             if let BasicValue::SaveString { path, value } = &l_b_v {
                                 use std::io::Write;
@@ -1927,8 +1950,8 @@ impl eframe::App for AppHandle {
                                     return;
                                 }
                             }
-                            text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
-                            self.cached_last_value = Some(text.clone());
+                            content = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                            self.cached_last_value = Some(content.clone());
                         }
                     } else {
                         spin = true;
@@ -1945,7 +1968,7 @@ impl eframe::App for AppHandle {
                     );
                     if let Err(e) = err {
                         let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
-                        self.cached_last_value = Some(text.clone());
+                        self.cached_last_value = Some(content.clone());
                     } else if let Some(l_b_v) = self.cache.get_last_state() {
                         if let BasicValue::SaveString { path, value } = &l_b_v {
                             use std::io::Write;
@@ -1961,8 +1984,8 @@ impl eframe::App for AppHandle {
                                 return;
                             }
                         }
-                        text = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
-                        self.cached_last_value = Some(text.clone());
+                        content = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                        self.cached_last_value = Some(content.clone());
                     }
                     spin = false;
                 }
@@ -1972,24 +1995,22 @@ impl eframe::App for AppHandle {
 
             if spin {
                 window.show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        use egui::widgets::Widget;
-                        ui.vertical_centered(|ui| {
-                            ui.heading("Result");
-                        });
+                    use egui::widgets::Widget;
+                    ui.vertical_centered(|ui| {
+                        ui.heading("Result");
+                    });
+                    ui.separator();
+                    ui.vertical_centered(|ui| {
                         egui::widgets::Spinner::new().ui(ui);
                     });
                 });
             } else {
                 window.show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.vertical_centered(|ui| {
-                            ui.heading("Result");
-                        });
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.label(text);
-                        });
+                    ui.vertical_centered(|ui| {
+                        ui.heading("Result");
                     });
+                    ui.separator();
+                    ui.add(content);
                 });
             }
         }
@@ -2044,11 +2065,40 @@ fn create_output(
     Ok(())
 }
 
+#[derive(Clone, Default)]
+enum WidgetLayout {
+    LayoutJob(LayoutJob),
+    Image(egui::TextureHandle),
+
+    #[default]
+    Empty,
+}
+
+impl egui::Widget for WidgetLayout {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        match self {
+            | Self::LayoutJob(lj) => {
+                let mut response = None;
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    response = Some(egui::Label::new(lj).ui(ui));
+                });
+                response.unwrap()
+            },
+            | Self::Empty => {
+                egui::Label::new("").ui(ui)
+            },
+            | Self::Image(i) => {
+                egui::Image::new(&i).max_size(ui.available_size()).ui(ui)
+            }
+        }
+    }
+}
+
 fn get_layout(
     value: anyhow::Result<BasicValue>,
     translator: &rsprocess::translator::Translator,
     ctx: &egui::Context,
-) -> LayoutJob {
+) -> WidgetLayout {
     let mut text = LayoutJob::default();
 
     match value {
@@ -2231,6 +2281,9 @@ fn get_layout(
                 0.,
                 Default::default(),
             ),
+            | BasicValue::Svg { value } => {
+                return WidgetLayout::Image(value.get_texture(ctx));
+            },
         },
         | Err(err) => {
             text.append(&format!("{err:?}"), 0., TextFormat {
@@ -2239,5 +2292,5 @@ fn get_layout(
             });
         },
     }
-    text
+    WidgetLayout::LayoutJob(text)
 }

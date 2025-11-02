@@ -6,6 +6,7 @@
 mod app;
 mod app_logic;
 mod helper;
+mod svg;
 
 pub use app::AppHandle;
 

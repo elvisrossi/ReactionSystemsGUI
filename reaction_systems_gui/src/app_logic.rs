@@ -2492,7 +2492,27 @@ fn process_template(
             #[cfg(target_arch = "wasm32")] {
                 anyhow::bail!("Cannot sleep on wams");
             }
-        }
+        },
+        | NodeInstruction::StringToSvg => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = match super::svg::Svg::parse_dot_string(&value) {
+                    Ok(svg) => svg,
+                    Err(e) => anyhow::bail!(e),
+                };
+
+                let res = BasicValue::Svg { value: res };
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
     }
     Ok(None)
 }
