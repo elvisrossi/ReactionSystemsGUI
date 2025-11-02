@@ -13,6 +13,8 @@ pub(crate) struct Svg {
     /// original size of the svg
     svg_size: egui::Vec2,
 
+    original: String,
+
     #[cfg_attr(feature = "persistence", serde(skip))]
     svg_texture: Arc<Mutex<Option<egui::TextureHandle>>>,
 }
@@ -53,7 +55,10 @@ impl Svg {
 
         let image = egui::ColorImage::from_rgba_unmultiplied([w as _, h as _], &data);
 
-        let svg = Svg { image, svg_size, svg_texture: Arc::new(Mutex::new(None)) };
+        let svg = Svg { image,
+                        original: content,
+                        svg_size,
+                        svg_texture: Arc::new(Mutex::new(None)) };
 
         Ok(svg)
     }
@@ -68,6 +73,19 @@ impl Svg {
             *self.svg_texture.lock().expect("Poisoned") = Some(svg_texture.clone());
             svg_texture
         }
+    }
+
+    pub(crate) fn rasterize(&self) -> Result<nsvg::image::ImageBuffer<nsvg::image::Rgba<u8>, Vec<u8>>, String> {
+        let svg = match nsvg::parse_str(&self.original, nsvg::Units::Pixel, 96.0) {
+            Ok(svg) => svg,
+            Err(nsvg_err) => return Err(format!("{}", nsvg_err)),
+        };
+        let data = match svg.rasterize(1.) {
+            Ok(o) => o,
+            Err(e) => return Err(format!("{}", e)),
+        };
+
+        Ok(data)
     }
 }
 
@@ -105,6 +123,7 @@ impl Hash for Svg {
         hash_float!(self.svg_size.y);
         self.image.pixels.hash(state);
         self.image.size.hash(state);
+        self.original.hash(state);
         hash_float!(self.image.source_size.x);
         hash_float!(self.image.source_size.y);
         self.svg_texture.lock().expect("Poisoned").hash(state);

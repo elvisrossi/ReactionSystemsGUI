@@ -75,9 +75,9 @@ pub enum BasicDataType {
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum BasicValue {
-    SaveString {
+    SaveBytes {
         path:  String,
-        value: String,
+        value: Vec<u8>,
     },
     Error {
         value: LayoutJob,
@@ -225,7 +225,7 @@ impl Hash for BasicValue {
         );
 
         match self {
-            | Self::SaveString { path, value } => {
+            | Self::SaveBytes { path, value } => {
                 path.hash(state);
                 value.hash(state);
             },
@@ -284,6 +284,7 @@ pub enum NodeInstruction {
     ColorNode,
     ColorEdge,
     StringToSvg,
+    SaveSvg,
 
     // convert basic data types
     ToPositiveSet,
@@ -493,6 +494,7 @@ impl NodeInstruction {
             ],
             | Self::Sleep => vec![("seconds", PositiveInt)],
             | Self::StringToSvg => vec![("value", String)],
+            | Self::SaveSvg => vec![("path", Path), ("value", Svg)]
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -589,6 +591,7 @@ impl NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjan => vec![("out", String)],
             | Self::Sleep => vec![("out", PositiveInt)],
             | Self::StringToSvg => vec![("out", Svg)],
+            | Self::SaveSvg => vec![],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -1087,6 +1090,7 @@ impl NodeTemplateTrait for NodeInstruction {
                 "Positive Paige & Torjan",
             | Self::Sleep => "Sleep",
             | Self::StringToSvg => "String to SVG",
+            | Self::SaveSvg => "Save SVG",
         })
     }
 
@@ -1169,7 +1173,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
             | Self::Sleep
-            | Self::StringToSvg => vec!["General"],
+            | Self::StringToSvg
+            | Self::SaveSvg => vec!["General"],
         }
     }
 
@@ -1276,6 +1281,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::PositiveBisimilarityPaigeTarjan,
             NodeInstruction::Sleep,
             NodeInstruction::StringToSvg,
+            NodeInstruction::SaveSvg,
         ]
     }
 }
@@ -1298,7 +1304,7 @@ impl WidgetValueTrait for BasicValue {
 
         match self {
             // Dummy values used to save files, no ui since not needed
-            | BasicValue::SaveString { path: _, value: _ } => {},
+            | BasicValue::SaveBytes { path: _, value: _ } => {},
             | BasicValue::Error { value: _ } => {},
 
             | BasicValue::String { value } => {
@@ -1461,6 +1467,13 @@ impl NodeDataTrait for NodeData {
                     ));
                 }
             },
+            | (_, NodeInstruction::SaveSvg) => {
+                if ui.button("Write").clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::SaveToFile(node_id),
+                    ));
+                }
+            }
             | (true, NodeInstruction::ReadPath) => {
                 // since no filewatcher we simply give the option to reload the
                 // file
@@ -1936,7 +1949,7 @@ impl eframe::App for AppHandle {
                             let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
                             self.cached_last_value = Some(text);
                         } else if let Some(l_b_v) = self.cache.get_last_state() {
-                            if let BasicValue::SaveString { path, value } = &l_b_v {
+                            if let BasicValue::SaveBytes { path, value } = &l_b_v {
                                 use std::io::Write;
                                 let mut f = match std::fs::File::create(path) {
                                     Ok(f) => f,
@@ -1945,7 +1958,7 @@ impl eframe::App for AppHandle {
                                         return;
                                     }
                                 };
-                                if let Err(e) = write!(f, "{}", value) {
+                                if let Err(e) = f.write_all(value) {
                                     println!("Error writing to file {path}: {e}");
                                     return;
                                 }
@@ -1970,7 +1983,7 @@ impl eframe::App for AppHandle {
                         let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
                         self.cached_last_value = Some(content.clone());
                     } else if let Some(l_b_v) = self.cache.get_last_state() {
-                        if let BasicValue::SaveString { path, value } = &l_b_v {
+                        if let BasicValue::SaveBytes { path, value } = &l_b_v {
                             use std::io::Write;
                             let mut f = match std::fs::File::create(path) {
                                 Ok(f) => f,
@@ -2103,7 +2116,7 @@ fn get_layout(
 
     match value {
         | Ok(value) => match value {
-            | BasicValue::SaveString { path, value: _ } => text.append(
+            | BasicValue::SaveBytes { path, value: _ } => text.append(
                 &format!("Saving to file \"{}\"", path),
                 0., Default::default(),
             ),

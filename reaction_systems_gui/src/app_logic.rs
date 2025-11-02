@@ -108,11 +108,14 @@ fn generate_to_evaluate(
     for n_id in dependencies {
         let mut input_hashes = vec![];
 
-        if let NodeInstruction::SaveString = graph[n_id].user_data.template {
-            res.push(n_id);
-            invalid_ids.insert(n_id);
-            outputs_cache.invalidate_outputs(graph, n_id);
-            continue;
+        match graph[n_id].user_data.template {
+            NodeInstruction::SaveString | NodeInstruction::SaveSvg => {
+                res.push(n_id);
+                invalid_ids.insert(n_id);
+                outputs_cache.invalidate_outputs(graph, n_id);
+                continue;
+            },
+            _ => {}
         }
 
         let first_output =
@@ -848,7 +851,7 @@ fn process_template(
                     BasicValue::Path { value: path },
                     BasicValue::String { value },
                 ) => {
-                    *to_ret = Some(BasicValue::SaveString { path, value });
+                    *to_ret = Some(BasicValue::SaveBytes { path, value: value.into() });
                 },
                 | (BasicValue::Path { .. }, _) => {
                     anyhow::bail!("Not a string");
@@ -2513,6 +2516,36 @@ fn process_template(
                 anyhow::bail!("Not a string");
             }
         },
+        | NodeInstruction::SaveSvg => {
+            let (path, svg) = retrieve_from_cache![2];
+
+            match (path, svg) {
+                | (
+                    BasicValue::Path { value: path },
+                    BasicValue::Svg { value },
+                ) => {
+                    let mut path = path.to_string();
+                    if !path.ends_with(".png") {
+                        path.push_str(".png");
+                    }
+                    let svg = match value.rasterize() {
+                        Ok(svg) => svg,
+                        Err(e) => anyhow::bail!(e),
+                    };
+                    let raw = svg.into_raw();
+                    *to_ret = Some(BasicValue::SaveBytes { path, value: raw });
+                },
+                | (BasicValue::Path { .. }, _) => {
+                    anyhow::bail!("Not an svg");
+                },
+                | (_, BasicValue::Svg { .. }) => {
+                    anyhow::bail!("Not a path");
+                },
+                | (_, _) => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
+        }
     }
     Ok(None)
 }
