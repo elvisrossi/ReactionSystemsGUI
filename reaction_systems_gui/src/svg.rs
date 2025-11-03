@@ -41,19 +41,20 @@ impl Svg {
         );
         let content = svg.finalize();
 
-        let svg = match nsvg::parse_str(&content, nsvg::Units::Pixel, 96.0) {
+        let svg_tree = match resvg::usvg::Tree::from_str(&content, &resvg::usvg::Options::default()) {
             Ok(svg) => svg,
-            Err(nsvg_err) => return Err(format!("{}", nsvg_err)),
+            Err(err) => return Err(format!("{}", err)),
         };
 
-        let svg_size = egui::vec2(svg.width(), svg.height());
+        let svg_size = egui::vec2(svg_tree.size().width(), svg_tree.size().height());
 
-        let (w, h, data) = match svg.rasterize_to_raw_rgba(1.) {
-            Ok(o) => o,
-            Err(e) => return Err(format!("{}", e)),
-        };
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(svg_size.x as _, svg_size.y as _)
+            .expect("Could not allocate svg");
+        let pixmap_mut = &mut pixmap.as_mut();
+        resvg::render(&svg_tree, Default::default(), pixmap_mut);
+        let pixmap = pixmap_mut.to_owned();
 
-        let image = egui::ColorImage::from_rgba_unmultiplied([w as _, h as _], &data);
+        let image = egui::ColorImage::from_rgba_unmultiplied([pixmap.width() as _, pixmap.height() as _], pixmap.data());
 
         let svg = Svg { image,
                         original: content,
@@ -75,17 +76,21 @@ impl Svg {
         }
     }
 
-    pub(crate) fn rasterize(&self) -> Result<nsvg::image::ImageBuffer<nsvg::image::Rgba<u8>, Vec<u8>>, String> {
-        let svg = match nsvg::parse_str(&self.original, nsvg::Units::Pixel, 96.0) {
+    pub(crate) fn rasterize(&self) -> Result<Vec<u8>, String> {
+        let svg_tree = match resvg::usvg::Tree::from_str(&self.original, &resvg::usvg::Options::default()) {
             Ok(svg) => svg,
-            Err(nsvg_err) => return Err(format!("{}", nsvg_err)),
+            Err(err) => return Err(format!("{}", err)),
         };
-        let data = match svg.rasterize(1.) {
-            Ok(o) => o,
-            Err(e) => return Err(format!("{}", e)),
-        };
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(self.svg_size.x as _, self.svg_size.y as _)
+            .expect("Could not allocate svg");
+        let pixmap_mut = &mut pixmap.as_mut();
+        resvg::render(&svg_tree, Default::default(), pixmap_mut);
+        let pixmap = pixmap_mut.to_owned();
 
-        Ok(data)
+        match pixmap.encode_png() {
+            Ok(png) => Ok(png),
+            Err(e) => Err(format!("{}", e)),
+        }
     }
 }
 

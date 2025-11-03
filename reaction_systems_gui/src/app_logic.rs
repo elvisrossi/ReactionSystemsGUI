@@ -2532,8 +2532,7 @@ fn process_template(
                         Ok(svg) => svg,
                         Err(e) => anyhow::bail!(e),
                     };
-                    let raw = svg.into_raw();
-                    *to_ret = Some(BasicValue::SaveBytes { path, value: raw });
+                    *to_ret = Some(BasicValue::SaveBytes { path, value: svg });
                 },
                 | (BasicValue::Path { .. }, _) => {
                     anyhow::bail!("Not an svg");
