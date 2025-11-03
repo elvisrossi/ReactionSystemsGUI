@@ -21,6 +21,9 @@ pub(crate) struct Svg {
 
 impl Svg {
     pub(crate) fn parse_dot_string(dot_str: &str) -> Result<Svg, String> {
+        let mut fontdb = fontdb::Database::new();
+        fontdb.load_system_fonts();
+
         let mut parser = gv::DotParser::new(dot_str);
         let g = match parser.process() {
             Ok(g) => g,
@@ -41,7 +44,15 @@ impl Svg {
         );
         let content = svg.finalize();
 
-        let svg_tree = match resvg::usvg::Tree::from_str(&content, &resvg::usvg::Options::default()) {
+        let svg_tree = match resvg::usvg::Tree::from_str(
+            &content,
+            &resvg::usvg::Options {
+                dpi: 92.,
+                font_family: "Andale Mono".into(),
+                fontdb: Arc::new(fontdb),
+                ..Default::default()
+            }
+        ) {
             Ok(svg) => svg,
             Err(err) => return Err(format!("{}", err)),
         };
@@ -77,7 +88,14 @@ impl Svg {
     }
 
     pub(crate) fn rasterize(&self) -> Result<Vec<u8>, String> {
-        let svg_tree = match resvg::usvg::Tree::from_str(&self.original, &resvg::usvg::Options::default()) {
+        let svg_tree = match resvg::usvg::Tree::from_str(
+            &self.original,
+            &resvg::usvg::Options {
+                dpi: 92.,
+                font_family: "Andale Mono".into(),
+                ..Default::default()
+            }
+        ) {
             Ok(svg) => svg,
             Err(err) => return Err(format!("{}", err)),
         };

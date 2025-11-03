@@ -15,6 +15,7 @@ colored = "*"
 lalrpop-util = "*"
 petgraph = ">=0.8"
 resvg = "*"
+fontdb = "*"
 dyn-clone = "*"
 petgraph-graphml = "*"
 egui_node_graph2 = { path = "../egui_node_graph2" }

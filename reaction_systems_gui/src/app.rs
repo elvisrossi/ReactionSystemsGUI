@@ -1981,7 +1981,7 @@ impl eframe::App for AppHandle {
                     );
                     if let Err(e) = err {
                         let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
-                        self.cached_last_value = Some(content.clone());
+                        self.cached_last_value = Some(text);
                     } else if let Some(l_b_v) = self.cache.get_last_state() {
                         if let BasicValue::SaveBytes { path, value } = &l_b_v {
                             use std::io::Write;
@@ -1992,7 +1992,7 @@ impl eframe::App for AppHandle {
                                     return;
                                 }
                             };
-                            if let Err(e) = write!(f, "{}", value) {
+                            if let Err(e) = f.write_all(value) {
                                 println!("Error writing to file {path}: {e}");
                                 return;
                             }
