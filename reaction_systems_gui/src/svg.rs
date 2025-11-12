@@ -1,7 +1,10 @@
-use std::{fmt::Debug, hash::Hash, sync::{Arc, Mutex}};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::sync::{Arc, Mutex};
 
-use layout::{backends::svg::SVGWriter, gv::{self, GraphBuilder}};
 use eframe::egui;
+use layout::backends::svg::SVGWriter;
+use layout::gv::{self, GraphBuilder};
 
 #[cfg_attr(
     feature = "persistence",
@@ -9,7 +12,7 @@ use eframe::egui;
 )]
 #[derive(Clone, Default)]
 pub(crate) struct Svg {
-    image: egui::ColorImage,
+    image:    egui::ColorImage,
     /// original size of the svg
     svg_size: egui::Vec2,
 
@@ -26,9 +29,9 @@ impl Svg {
 
         let mut parser = gv::DotParser::new(dot_str);
         let g = match parser.process() {
-            Ok(g) => g,
-            Err(_) =>
-                // errors are printed to sdtout so we ignore them
+            | Ok(g) => g,
+            | Err(_) =>
+            // errors are printed to sdtout so we ignore them
                 return Err("Could not parse dot string.".into()),
         };
 
@@ -36,53 +39,58 @@ impl Svg {
         gb.visit_graph(&g);
         let mut graph = gb.get();
         let mut svg = SVGWriter::new();
-        graph.do_it(
-            false,
-            false,
-            false,
-            &mut svg,
-        );
+        graph.do_it(false, false, false, &mut svg);
         let content = svg.finalize();
 
-        let svg_tree = match resvg::usvg::Tree::from_str(
-            &content,
-            &resvg::usvg::Options {
+        let svg_tree =
+            match resvg::usvg::Tree::from_str(&content, &resvg::usvg::Options {
                 dpi: 92.,
                 font_family: "Andale Mono".into(),
                 fontdb: Arc::new(fontdb),
                 ..Default::default()
-            }
-        ) {
-            Ok(svg) => svg,
-            Err(err) => return Err(format!("{}", err)),
-        };
+            }) {
+                | Ok(svg) => svg,
+                | Err(err) => return Err(format!("{}", err)),
+            };
 
-        let svg_size = egui::vec2(svg_tree.size().width(), svg_tree.size().height());
+        let svg_size =
+            egui::vec2(svg_tree.size().width(), svg_tree.size().height());
 
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(svg_size.x as _, svg_size.y as _)
-            .expect("Could not allocate svg");
+        let mut pixmap =
+            resvg::tiny_skia::Pixmap::new(svg_size.x as _, svg_size.y as _)
+                .expect("Could not allocate svg");
         let pixmap_mut = &mut pixmap.as_mut();
         resvg::render(&svg_tree, Default::default(), pixmap_mut);
         let pixmap = pixmap_mut.to_owned();
 
-        let image = egui::ColorImage::from_rgba_unmultiplied([pixmap.width() as _, pixmap.height() as _], pixmap.data());
+        let image = egui::ColorImage::from_rgba_unmultiplied(
+            [pixmap.width() as _, pixmap.height() as _],
+            pixmap.data(),
+        );
 
-        let svg = Svg { image,
-                        original: content,
-                        svg_size,
-                        svg_texture: Arc::new(Mutex::new(None)) };
+        let svg = Svg {
+            image,
+            original: content,
+            svg_size,
+            svg_texture: Arc::new(Mutex::new(None)),
+        };
 
         Ok(svg)
     }
 
-    pub(crate) fn get_texture(&self, ctx: &egui::Context) -> egui::TextureHandle {
+    pub(crate) fn get_texture(
+        &self,
+        ctx: &egui::Context,
+    ) -> egui::TextureHandle {
         let tx = self.svg_texture.lock().expect("Poisoned");
         if tx.is_some() {
             (*tx).clone().unwrap()
         } else {
             std::mem::drop(tx);
-            let svg_texture = ctx.load_texture("svg", self.image.clone(), Default::default());
-            *self.svg_texture.lock().expect("Poisoned") = Some(svg_texture.clone());
+            let svg_texture =
+                ctx.load_texture("svg", self.image.clone(), Default::default());
+            *self.svg_texture.lock().expect("Poisoned") =
+                Some(svg_texture.clone());
             svg_texture
         }
     }
@@ -94,34 +102,39 @@ impl Svg {
                 dpi: 92.,
                 font_family: "Andale Mono".into(),
                 ..Default::default()
-            }
+            },
         ) {
-            Ok(svg) => svg,
-            Err(err) => return Err(format!("{}", err)),
+            | Ok(svg) => svg,
+            | Err(err) => return Err(format!("{}", err)),
         };
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(self.svg_size.x as _, self.svg_size.y as _)
-            .expect("Could not allocate svg");
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(
+            self.svg_size.x as _,
+            self.svg_size.y as _,
+        )
+        .expect("Could not allocate svg");
         let pixmap_mut = &mut pixmap.as_mut();
         resvg::render(&svg_tree, Default::default(), pixmap_mut);
         let pixmap = pixmap_mut.to_owned();
 
         match pixmap.encode_png() {
-            Ok(png) => Ok(png),
-            Err(e) => Err(format!("{}", e)),
+            | Ok(png) => Ok(png),
+            | Err(e) => Err(format!("{}", e)),
         }
     }
 }
 
 impl Debug for Svg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[image: {:?}, svg_size: {:?}, svg_texture: {}",
-               self.image,
-               self.svg_size,
-               if self.svg_texture.lock().expect("Poisoned").is_some() {
-                   "Some(...)"
-               } else {
-                   "None"
-               }
+        write!(
+            f,
+            "[image: {:?}, svg_size: {:?}, svg_texture: {}",
+            self.image,
+            self.svg_size,
+            if self.svg_texture.lock().expect("Poisoned").is_some() {
+                "Some(...)"
+            } else {
+                "None"
+            }
         )
     }
 }

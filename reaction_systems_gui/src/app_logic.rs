@@ -55,7 +55,7 @@ pub fn evaluate_node(
             | None => {},
             | Some(val) => {
                 outputs_cache.set_last_state(val);
-                return Ok(())
+                return Ok(());
             },
         }
     }
@@ -109,21 +109,20 @@ fn generate_to_evaluate(
         let mut input_hashes = vec![];
 
         match graph[n_id].user_data.template {
-            NodeInstruction::SaveString | NodeInstruction::SaveSvg => {
+            | NodeInstruction::SaveString | NodeInstruction::SaveSvg => {
                 res.push(n_id);
                 invalid_ids.insert(n_id);
                 outputs_cache.invalidate_outputs(graph, n_id);
                 continue;
             },
-            _ => {}
+            | _ => {},
         }
 
-        let first_output =
-            if let Some(o) = graph[n_id].output_ids().next() {
-                o
-            } else {
-                continue;
-            };
+        let first_output = if let Some(o) = graph[n_id].output_ids().next() {
+            o
+        } else {
+            continue;
+        };
         let hashes =
             if let Some(hashes) = outputs_cache.input_hashes(&first_output) {
                 hashes
@@ -442,7 +441,10 @@ fn process_template(
                         value: format!(
                             "After {} steps arrived at state {}",
                             limit.0,
-                            Formatter::from(&translator.lock().unwrap(), &limit.1)
+                            Formatter::from(
+                                &translator.lock().unwrap(),
+                                &limit.1
+                            )
                         ),
                     };
                     set_cache_output!((
@@ -694,12 +696,14 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -762,12 +766,14 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -797,12 +803,14 @@ fn process_template(
                     BasicValue::AssertFunction { value: grouping },
                 ) => {
                     use execution::data::MapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -851,7 +859,10 @@ fn process_template(
                     BasicValue::Path { value: path },
                     BasicValue::String { value },
                 ) => {
-                    *to_ret = Some(BasicValue::SaveBytes { path, value: value.into() });
+                    *to_ret = Some(BasicValue::SaveBytes {
+                        path,
+                        value: value.into(),
+                    });
                 },
                 | (BasicValue::Path { .. }, _) => {
                     anyhow::bail!("Not a string");
@@ -899,13 +910,18 @@ fn process_template(
                     BasicValue::ColorNode { value: color_node },
                     BasicValue::ColorEdge { value: color_edge },
                 ) => {
-                    let current_translator: rsprocess::translator::Translator = translator.lock().unwrap().clone();
+                    let current_translator: rsprocess::translator::Translator =
+                        translator.lock().unwrap().clone();
                     let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
-                        display_node
-                            .generate(Arc::clone(&arc_translator), &input_graph),
-                        display_edge
-                            .generate(Arc::clone(&arc_translator), &input_graph),
+                        display_node.generate(
+                            Arc::clone(&arc_translator),
+                            &input_graph,
+                        ),
+                        display_edge.generate(
+                            Arc::clone(&arc_translator),
+                            &input_graph,
+                        ),
                     );
 
                     let input_graph = Arc::new(input_graph.to_owned());
@@ -1076,8 +1092,10 @@ fn process_template(
                     let current_translator = translator.lock().unwrap().clone();
                     let arc_translator = Arc::new(current_translator);
                     let modified_graph = input_graph.map(
-                        display_node
-                            .generate(Arc::clone(&arc_translator), &input_graph),
+                        display_node.generate(
+                            Arc::clone(&arc_translator),
+                            &input_graph,
+                        ),
                         display_edge.generate(arc_translator, &input_graph),
                     );
 
@@ -1303,7 +1321,10 @@ fn process_template(
                         value: format!(
                             "After {} steps arrived at state {}",
                             limit.0,
-                            Formatter::from(&translator.lock().unwrap(), &limit.1)
+                            Formatter::from(
+                                &translator.lock().unwrap(),
+                                &limit.1
+                            )
                         ),
                     };
                     set_cache_output!((
@@ -1788,7 +1809,10 @@ fn process_template(
 
             if let BasicValue::Trace { value } = trace {
                 let res = BasicValue::String {
-                    value: format!("{}", Formatter::from(&translator.lock().unwrap(), &value)),
+                    value: format!(
+                        "{}",
+                        Formatter::from(&translator.lock().unwrap(), &value)
+                    ),
                 };
                 set_cache_output!((
                     output_names.first().unwrap(),
@@ -1805,7 +1829,10 @@ fn process_template(
 
             if let BasicValue::PositiveTrace { value } = trace {
                 let res = BasicValue::String {
-                    value: format!("{}", Formatter::from(&translator.lock().unwrap(), &value)),
+                    value: format!(
+                        "{}",
+                        Formatter::from(&translator.lock().unwrap(), &value)
+                    ),
                 };
                 set_cache_output!((
                     output_names.first().unwrap(),
@@ -2124,7 +2151,11 @@ fn process_template(
                 ) => {
                     use execution::data;
                     let mut graph = g.clone();
-                    match data::grouping(&mut graph, &grouping, &mut translator.lock().unwrap()) {
+                    match data::grouping(
+                        &mut graph,
+                        &grouping,
+                        &mut translator.lock().unwrap(),
+                    ) {
                         | Ok(_) => {},
                         | Err(e) => anyhow::bail!(e),
                     };
@@ -2223,7 +2254,9 @@ fn process_template(
                     use execution::data;
                     let mut graph = g.clone();
                     match data::positive_grouping(
-                        &mut graph, &grouping, &mut translator.lock().unwrap(),
+                        &mut graph,
+                        &grouping,
+                        &mut translator.lock().unwrap(),
                     ) {
                         | Ok(_) => {},
                         | Err(e) => anyhow::bail!(e),
@@ -2254,12 +2287,14 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2289,12 +2324,14 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2324,12 +2361,14 @@ fn process_template(
                     BasicValue::PositiveAssertFunction { value: grouping },
                 ) => {
                     use execution::data::PositiveMapEdges;
-                    let graph_1 = match graph_1.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_1 = match graph_1
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
                     };
-                    let graph_2 = match graph_2.map_edges(&grouping, &mut translator.lock().unwrap())
+                    let graph_2 = match graph_2
+                        .map_edges(&grouping, &mut translator.lock().unwrap())
                     {
                         | Ok(g) => g,
                         | Err(e) => anyhow::bail!(e),
@@ -2476,12 +2515,16 @@ fn process_template(
             }
         },
         | NodeInstruction::Sleep => {
-            #[cfg(not(target_arch = "wasm32"))] {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
                 let input_seconds = retrieve_from_cache![1];
                 let hash_inputs = hash_inputs!(input_seconds);
 
-                if let BasicValue::PositiveInt { value: _value } = input_seconds {
-                    std::thread::sleep(std::time::Duration::from_secs(_value as u64));
+                if let BasicValue::PositiveInt { value: _value } = input_seconds
+                {
+                    std::thread::sleep(std::time::Duration::from_secs(
+                        _value as u64,
+                    ));
 
                     set_cache_output!((
                         output_names.first().unwrap(),
@@ -2492,7 +2535,8 @@ fn process_template(
                     anyhow::bail!("Not an integer");
                 }
             }
-            #[cfg(target_arch = "wasm32")] {
+            #[cfg(target_arch = "wasm32")]
+            {
                 anyhow::bail!("Cannot sleep on wams");
             }
         },
@@ -2502,8 +2546,8 @@ fn process_template(
 
             if let BasicValue::String { value } = s {
                 let res = match super::svg::Svg::parse_dot_string(&value) {
-                    Ok(svg) => svg,
-                    Err(e) => anyhow::bail!(e),
+                    | Ok(svg) => svg,
+                    | Err(e) => anyhow::bail!(e),
                 };
 
                 let res = BasicValue::Svg { value: res };
@@ -2529,8 +2573,8 @@ fn process_template(
                         path.push_str(".png");
                     }
                     let svg = match value.rasterize() {
-                        Ok(svg) => svg,
-                        Err(e) => anyhow::bail!(e),
+                        | Ok(svg) => svg,
+                        | Err(e) => anyhow::bail!(e),
                     };
                     *to_ret = Some(BasicValue::SaveBytes { path, value: svg });
                 },
@@ -2544,7 +2588,7 @@ fn process_template(
                     anyhow::bail!("Values of wrong type");
                 },
             }
-        }
+        },
     }
     Ok(None)
 }

@@ -1134,7 +1134,8 @@ where
                 let max_connections = self.graph[*param]
                     .max_connections
                     .map(NonZeroU32::get)
-                    .unwrap_or(u32::MAX) as usize;
+                    .unwrap_or(u32::MAX)
+                    as usize;
                 draw_port(
                     pan_zoom,
                     ui,
@@ -1209,8 +1210,12 @@ where
                 vec2(outer_rect.width(), outer_rect.height() - titlebar_height),
             );
             let body = Shape::Rect(
-                RectShape::filled(body_rect, CornerRadius::ZERO, background_color)
-                    .with_texture(Default::default(), Rect::ZERO),
+                RectShape::filled(
+                    body_rect,
+                    CornerRadius::ZERO,
+                    background_color,
+                )
+                .with_texture(Default::default(), Rect::ZERO),
             );
 
             let bottom_body_rect = Rect::from_min_size(
@@ -1230,8 +1235,9 @@ where
                     RectShape::filled(
                         node_rect.expand(1.0 * pan_zoom.zoom),
                         rounding,
-                        Color32::WHITE.lighten(0.8))
-                        .with_texture(Default::default(), Rect::ZERO)
+                        Color32::WHITE.lighten(0.8),
+                    )
+                    .with_texture(Default::default(), Rect::ZERO),
                 )
             } else {
                 Shape::Noop

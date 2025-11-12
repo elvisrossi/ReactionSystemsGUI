@@ -79,8 +79,8 @@ where
                 let mut query_submit = resp.lost_focus()
                     && ui.input(|i| i.key_pressed(Key::Enter));
 
-                let max_height =
-                    ui.input(|i| f32::max(i.content_rect().height() * 0.5, 200.));
+                let max_height = ui
+                    .input(|i| f32::max(i.content_rect().height() * 0.5, 200.));
                 let scroll_area_width = resp.rect.width();
 
                 let all_kinds = all_kinds.all_kinds();

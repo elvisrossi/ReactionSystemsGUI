@@ -494,7 +494,7 @@ impl NodeInstruction {
             ],
             | Self::Sleep => vec![("seconds", PositiveInt)],
             | Self::StringToSvg => vec![("value", String)],
-            | Self::SaveSvg => vec![("path", Path), ("value", Svg)]
+            | Self::SaveSvg => vec![("path", Path), ("value", Svg)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -695,10 +695,7 @@ impl NodeInstruction {
                 PositiveGroupFunction,
                 assert::positive_grouping::PositiveAssert::default()
             ),
-            | BasicDataType::Svg => helper!(
-                Svg,
-                super::svg::Svg::default()
-            )
+            | BasicDataType::Svg => helper!(Svg, super::svg::Svg::default()),
         }
     }
 
@@ -754,8 +751,7 @@ impl NodeInstruction {
                 helper!(PositiveAssertFunction),
             | BasicDataType::PositiveGroupFunction =>
                 helper!(PositiveGroupFunction),
-            | BasicDataType::Svg =>
-                helper!(Svg),
+            | BasicDataType::Svg => helper!(Svg),
         }
     }
 }
@@ -796,7 +792,9 @@ pub(crate) struct OutputsCache {
 
 impl Clone for OutputsCache {
     fn clone(&self) -> Self {
-        Self { internals: Arc::clone(&self.internals) }
+        Self {
+            internals: Arc::clone(&self.internals),
+        }
     }
 }
 
@@ -952,8 +950,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
                 egui::Color32::from_rgb(200, 150, 120),
             | Self::PositiveGroupFunction =>
                 egui::Color32::from_rgb(150, 120, 200),
-            | Self::Svg =>
-                egui::Color32::from_rgb(200, 200, 240),
+            | Self::Svg => egui::Color32::from_rgb(200, 200, 240),
         }
     }
 
@@ -1172,9 +1169,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjanNoLabels
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
-            | Self::Sleep
-            | Self::StringToSvg
-            | Self::SaveSvg => vec!["General"],
+            | Self::Sleep | Self::StringToSvg | Self::SaveSvg =>
+                vec!["General"],
         }
     }
 
@@ -1423,7 +1419,7 @@ impl WidgetValueTrait for BasicValue {
             },
             | BasicValue::Svg { value: _ } => {
                 ui.label(param_name);
-            }
+            },
         }
 
         responses
@@ -1467,13 +1463,12 @@ impl NodeDataTrait for NodeData {
                     ));
                 }
             },
-            | (_, NodeInstruction::SaveSvg) => {
+            | (_, NodeInstruction::SaveSvg) =>
                 if ui.button("Write").clicked() {
                     responses.push(NodeResponse::User(
                         CustomResponse::SaveToFile(node_id),
                     ));
-                }
-            }
+                },
             | (true, NodeInstruction::ReadPath) => {
                 // since no filewatcher we simply give the option to reload the
                 // file
@@ -1597,7 +1592,13 @@ impl AppHandle {
             .unwrap_or_default();
 
         let user_state = Arc::new(RwLock::new(GlobalState::default()));
-        Self { state, user_state, cache, translator, ..Default::default() }
+        Self {
+            state,
+            user_state,
+            cache,
+            translator,
+            ..Default::default()
+        }
     }
 }
 
@@ -1607,10 +1608,10 @@ fn write_state(
     state: &str,
     translator: &str,
     cache: &str,
-    path: &std::path::PathBuf
+    path: &std::path::PathBuf,
 ) -> std::io::Result<()> {
-    use std::io::{Write, BufWriter};
     use std::fs::File;
+    use std::io::{BufWriter, Write};
 
     let f = File::create(path)?;
     let mut writer = BufWriter::new(f);
@@ -1630,10 +1631,14 @@ fn write_state(
 #[cfg(feature = "persistence")]
 #[cfg(not(target_arch = "wasm32"))]
 fn read_state(
-    path: &std::path::PathBuf
-) -> Result<(EditorState, rsprocess::translator::Translator, OutputsCache), String> {
-    use std::io::Read;
+    path: &std::path::PathBuf,
+) -> Result<
+    (EditorState, rsprocess::translator::Translator, OutputsCache),
+    String,
+> {
     use std::fs::File;
+    use std::io::Read;
+
     use rsprocess::translator::Translator;
 
     let mut f = File::open(path).map_err(|e| format!("{e}"))?;
@@ -1666,25 +1671,37 @@ fn read_state(
     let string_state = {
         let mut s = Vec::new();
         s.reserve_exact(len_state as usize);
-        f.by_ref().take(len_state).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        f.by_ref()
+            .take(len_state)
+            .read_to_end(&mut s)
+            .map_err(|e| format!("{e}"))?;
         String::from_utf8(s).map_err(|e| format!("{e}"))?
     };
     let string_translator = {
         let mut s = Vec::new();
         s.reserve_exact(len_translator as usize);
-        f.by_ref().take(len_translator).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        f.by_ref()
+            .take(len_translator)
+            .read_to_end(&mut s)
+            .map_err(|e| format!("{e}"))?;
         String::from_utf8(s).map_err(|e| format!("{e}"))?
     };
     let string_cache = {
         let mut s = Vec::new();
         s.reserve_exact(len_cache as usize);
-        f.by_ref().take(len_cache).read_to_end(&mut s).map_err(|e| format!("{e}"))?;
+        f.by_ref()
+            .take(len_cache)
+            .read_to_end(&mut s)
+            .map_err(|e| format!("{e}"))?;
         String::from_utf8(s).map_err(|e| format!("{e}"))?
     };
 
-    let state = ron::from_str::<EditorState>(&string_state).map_err(|e| format!("{e}"))?;
-    let translator = ron::from_str::<Translator>(&string_translator).map_err(|e| format!("{e}"))?;
-    let cache = ron::from_str::<OutputsCache>(&string_cache).map_err(|e| format!("{e}"))?;
+    let state = ron::from_str::<EditorState>(&string_state)
+        .map_err(|e| format!("{e}"))?;
+    let translator = ron::from_str::<Translator>(&string_translator)
+        .map_err(|e| format!("{e}"))?;
+    let cache = ron::from_str::<OutputsCache>(&string_cache)
+        .map_err(|e| format!("{e}"))?;
 
     Ok((state, translator, cache))
 }
@@ -1747,7 +1764,7 @@ impl eframe::App for AppHandle {
                                     .pick_file()
                             {
                                 match read_state(&path) {
-                                    Ok((state, translator, cache)) => {
+                                    | Ok((state, translator, cache)) => {
                                         eframe::set_value(
                                             _frame
                                                 .storage_mut()
@@ -1761,18 +1778,23 @@ impl eframe::App for AppHandle {
                                             _frame
                                                 .storage_mut()
                                                 .expect("no storage found"),
-                                            TRANSLATOR_KEY, &translator,
+                                            TRANSLATOR_KEY,
+                                            &translator,
                                         );
-                                        self.translator = Arc::new(Mutex::new(translator));
+                                        self.translator =
+                                            Arc::new(Mutex::new(translator));
 
                                         eframe::set_value(
                                             _frame
                                                 .storage_mut()
                                                 .expect("no storage found"),
-                                            CACHE_KEY, &cache);
+                                            CACHE_KEY,
+                                            &cache,
+                                        );
                                         self.cache = cache;
                                     },
-                                    Err(e) => println!("Error reading file: {e}"),
+                                    | Err(e) =>
+                                        println!("Error reading file: {e}"),
                                 }
                                 ui.close();
                             }
@@ -1790,7 +1812,8 @@ impl eframe::App for AppHandle {
                                         },
                                     };
                                 let translator =
-                                    match ron::ser::to_string(&self.translator) {
+                                    match ron::ser::to_string(&self.translator)
+                                    {
                                         | Ok(value) => value,
                                         | Err(e) => {
                                             println!("Error serializing: {e}");
@@ -1805,9 +1828,15 @@ impl eframe::App for AppHandle {
                                             panic!()
                                         },
                                     };
-                                match write_state(&state, &translator, &cache, &path) {
-                                    Ok(_) => {},
-                                    Err(e) => println!("Could not save file: {e}"),
+                                match write_state(
+                                    &state,
+                                    &translator,
+                                    &cache,
+                                    &path,
+                                ) {
+                                    | Ok(_) => {},
+                                    | Err(e) =>
+                                        println!("Could not save file: {e}"),
                                 }
 
                                 ui.close();
@@ -1878,8 +1907,7 @@ impl eframe::App for AppHandle {
                     self.cached_last_value = None;
                 },
                 | NodeResponse::User(CustomResponse::FieldModified(node)) => {
-                    self.cache
-                        .invalidate_outputs(&self.state.graph, *node);
+                    self.cache.invalidate_outputs(&self.state.graph, *node);
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
@@ -1912,7 +1940,8 @@ impl eframe::App for AppHandle {
             if let Some(l_v) = &self.cached_last_value {
                 content = l_v.clone();
             } else {
-                #[cfg(not(target_arch = "wasm32"))] {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
                     // wasm does not support threads :-(
                     // ---------------------------------------------------------
                     // did we already start a thread?
@@ -1929,41 +1958,60 @@ impl eframe::App for AppHandle {
                                     graph,
                                     &cache,
                                     arc_translator,
-                                    &ctx
+                                    &ctx,
                                 )
                             })
                         };
                         self.app_logic_thread = Some(thread_join_handle);
                     }
 
-                    if self.app_logic_thread.as_ref()
+                    if self
+                        .app_logic_thread
+                        .as_ref()
                         .map(|handle| handle.is_finished())
                         .unwrap_or(false)
                     {
                         let handle = std::mem::take(&mut self.app_logic_thread);
 
-                        let err = handle.unwrap().join()
+                        let err = handle
+                            .unwrap()
+                            .join()
                             .expect("Could not join thread");
 
                         if let Err(e) = err {
-                            let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
+                            let text = get_layout(
+                                Err(e),
+                                &self.translator.lock().unwrap(),
+                                ctx,
+                            );
                             self.cached_last_value = Some(text);
-                        } else if let Some(l_b_v) = self.cache.get_last_state() {
-                            if let BasicValue::SaveBytes { path, value } = &l_b_v {
+                        } else if let Some(l_b_v) = self.cache.get_last_state()
+                        {
+                            if let BasicValue::SaveBytes { path, value } =
+                                &l_b_v
+                            {
                                 use std::io::Write;
                                 let mut f = match std::fs::File::create(path) {
-                                    Ok(f) => f,
-                                    Err(e) => {
-                                        println!("Error creating file {path}: {e}");
+                                    | Ok(f) => f,
+                                    | Err(e) => {
+                                        println!(
+                                            "Error creating file {path}: {e}"
+                                        );
                                         return;
-                                    }
+                                    },
                                 };
                                 if let Err(e) = f.write_all(value) {
-                                    println!("Error writing to file {path}: {e}");
+                                    println!(
+                                        "Error writing to file {path}: {e}"
+                                    );
                                     return;
                                 }
                             }
-                            content = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                            content = get_layout(
+                                Ok(l_b_v),
+                                &self.translator.lock().unwrap(),
+                                ctx,
+                            );
                             self.cached_last_value = Some(content.clone());
                         }
                     } else {
@@ -1971,33 +2019,42 @@ impl eframe::App for AppHandle {
                     }
                 }
 
-                #[cfg(target_arch = "wasm32")] {
+                #[cfg(target_arch = "wasm32")]
+                {
                     let err = create_output(
                         Arc::clone(&self.user_state),
                         self.state.graph.clone(),
                         &self.cache,
                         Arc::clone(&self.translator),
-                        &ctx
+                        &ctx,
                     );
                     if let Err(e) = err {
-                        let text = get_layout(Err(e), &self.translator.lock().unwrap(), ctx);
+                        let text = get_layout(
+                            Err(e),
+                            &self.translator.lock().unwrap(),
+                            ctx,
+                        );
                         self.cached_last_value = Some(text);
                     } else if let Some(l_b_v) = self.cache.get_last_state() {
                         if let BasicValue::SaveBytes { path, value } = &l_b_v {
                             use std::io::Write;
                             let mut f = match std::fs::File::create(path) {
-                                Ok(f) => f,
-                                Err(e) => {
+                                | Ok(f) => f,
+                                | Err(e) => {
                                     println!("Error creating file {path}: {e}");
                                     return;
-                                }
+                                },
                             };
                             if let Err(e) = f.write_all(value) {
                                 println!("Error writing to file {path}: {e}");
                                 return;
                             }
                         }
-                        content = get_layout(Ok(l_b_v), &self.translator.lock().unwrap(), ctx);
+                        content = get_layout(
+                            Ok(l_b_v),
+                            &self.translator.lock().unwrap(),
+                            ctx,
+                        );
                         self.cached_last_value = Some(content.clone());
                     }
                     spin = false;
@@ -2035,7 +2092,7 @@ fn create_output(
     graph: Graph<NodeData, BasicDataType, BasicValue>,
     cache: &OutputsCache,
     translator: Arc<Mutex<rsprocess::translator::Translator>>,
-    ctx: &egui::Context
+    ctx: &egui::Context,
 ) -> anyhow::Result<()> {
     let (save_node, active_node) = {
         let user_state = user_state.read().unwrap();
@@ -2092,17 +2149,16 @@ impl egui::Widget for WidgetLayout {
         match self {
             | Self::LayoutJob(lj) => {
                 let mut response = None;
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                    response = Some(egui::Label::new(lj).ui(ui));
-                });
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        response = Some(egui::Label::new(lj).ui(ui));
+                    });
                 response.unwrap()
             },
-            | Self::Empty => {
-                egui::Label::new("").ui(ui)
-            },
-            | Self::Image(i) => {
-                egui::Image::new(&i).max_size(ui.available_size()).ui(ui)
-            }
+            | Self::Empty => egui::Label::new("").ui(ui),
+            | Self::Image(i) =>
+                egui::Image::new(&i).max_size(ui.available_size()).ui(ui),
         }
     }
 }
@@ -2118,7 +2174,8 @@ fn get_layout(
         | Ok(value) => match value {
             | BasicValue::SaveBytes { path, value: _ } => text.append(
                 &format!("Saving to file \"{}\"", path),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::Error { value } => {
                 text = value;
@@ -2130,7 +2187,8 @@ fn get_layout(
                 text.append(&value, 0., Default::default()),
             | BasicValue::System { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
-                0., Default::default(),
+                0.,
+                Default::default(),
             ),
             | BasicValue::PositiveInt { value } =>
                 text.append(&format!("{value}"), 0., Default::default()),
