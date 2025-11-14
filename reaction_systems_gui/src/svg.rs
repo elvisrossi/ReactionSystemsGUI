@@ -16,6 +16,7 @@ pub(crate) struct Svg {
     image:    egui::ColorImage,
     /// original size of the svg
     svg_size: egui::Vec2,
+    svg_scale: f32,
 
     original: String,
 
@@ -59,7 +60,7 @@ impl Svg {
                 | Err(err) => return Err(format!("{}", err)),
             };
 
-        let (svg_size, scaling) = {
+        let (svg_size, scale) = {
             let width = svg_tree.size().width() as u32;
             let height = svg_tree.size().height() as u32;
             let max = std::cmp::max(width, height);
@@ -72,12 +73,12 @@ impl Svg {
                     (min, 1.)
                 }
             };
-            if width == max {
-                (egui::vec2(larger as f32, smaller as f32), scale)
+            let size = if width == max {
+                egui::vec2(larger as f32, smaller as f32)
             } else {
-                (egui::vec2(smaller as f32, larger as f32), scale)
-            }
-            // (egui::vec2(svg_tree.size().width(), svg_tree.size().height()), 1.)
+                egui::vec2(smaller as f32, larger as f32)
+            };
+            (size, scale)
         };
 
         // create the pixel map to render the svg in
@@ -88,8 +89,7 @@ impl Svg {
 
         // render the tree inside the pixel map
         resvg::render(&svg_tree,
-                      // scaling is compleately ignored by the library
-                      tiny_skia::Transform::from_scale(scaling, scaling),
+                      tiny_skia::Transform::from_scale(scale, scale),
                       pixmap_mut);
         let pixmap = pixmap_mut.to_owned();
 
@@ -104,6 +104,7 @@ impl Svg {
             image,
             original: content,
             svg_size,
+            svg_scale: scale,
             svg_texture: Arc::new(Mutex::new(None)),
         };
 
@@ -145,7 +146,10 @@ impl Svg {
         )
         .expect("Could not allocate svg");
         let pixmap_mut = &mut pixmap.as_mut();
-        resvg::render(&svg_tree, Default::default(), pixmap_mut);
+        resvg::render(&svg_tree,
+                      tiny_skia::Transform::from_scale(self.svg_scale,
+                                                       self.svg_scale),
+                      pixmap_mut);
         let pixmap = pixmap_mut.to_owned();
 
         match pixmap.encode_png() {
