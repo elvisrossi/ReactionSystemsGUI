@@ -1841,6 +1841,49 @@ impl eframe::App for AppHandle {
 
                                 ui.close();
                             }
+                            if ui.button("Save without cache…").clicked()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("ron", &["ron"])
+                                    .save_file()
+                            {
+                                let state =
+                                    match ron::ser::to_string(&self.state) {
+                                        | Ok(value) => value,
+                                        | Err(e) => {
+                                            println!("Error serializing: {e}");
+                                            panic!()
+                                        },
+                                    };
+                                let translator =
+                                    match ron::ser::to_string(&self.translator)
+                                    {
+                                        | Ok(value) => value,
+                                        | Err(e) => {
+                                            println!("Error serializing: {e}");
+                                            panic!()
+                                        },
+                                    };
+                                let cache =
+                                    match ron::ser::to_string(&OutputsCache::default()) {
+                                        | Ok(value) => value,
+                                        | Err(e) => {
+                                            println!("Error serializing: {e}");
+                                            panic!()
+                                        },
+                                    };
+                                match write_state(
+                                    &state,
+                                    &translator,
+                                    &cache,
+                                    &path,
+                                ) {
+                                    | Ok(_) => {},
+                                    | Err(e) =>
+                                        println!("Could not save file: {e}"),
+                                }
+
+                                ui.close();
+                            }
                         });
                 }
 

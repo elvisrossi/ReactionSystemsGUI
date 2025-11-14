@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use eframe::egui;
 use layout::backends::svg::SVGWriter;
 use layout::gv::{self, GraphBuilder};
+use resvg::tiny_skia;
 
 #[cfg_attr(
     feature = "persistence",
@@ -27,6 +28,7 @@ impl Svg {
         let mut fontdb = fontdb::Database::new();
         fontdb.load_system_fonts();
 
+        // parse the string to dot
         let mut parser = gv::DotParser::new(dot_str);
         let g = match parser.process() {
             | Ok(g) => g,
@@ -35,34 +37,64 @@ impl Svg {
                 return Err("Could not parse dot string.".into()),
         };
 
+        // from the graph create the svg
         let mut gb = GraphBuilder::new();
         gb.visit_graph(&g);
         let mut graph = gb.get();
         let mut svg = SVGWriter::new();
         graph.do_it(false, false, false, &mut svg);
+        // convert svg to string
         let content = svg.finalize();
 
+        // parse the string into an svg tree (different library)
         let svg_tree =
             match resvg::usvg::Tree::from_str(&content, &resvg::usvg::Options {
                 dpi: 92.,
-                font_family: "Andale Mono".into(),
+                // font_family: "Andale Mono".into(),
                 fontdb: Arc::new(fontdb),
+                default_size: resvg::tiny_skia::Size::from_wh(100., 100.).unwrap(),
                 ..Default::default()
             }) {
                 | Ok(svg) => svg,
                 | Err(err) => return Err(format!("{}", err)),
             };
 
-        let svg_size =
-            egui::vec2(svg_tree.size().width(), svg_tree.size().height());
+        let (svg_size, scaling) = {
+            let width = svg_tree.size().width() as u32;
+            let height = svg_tree.size().height() as u32;
+            let max = std::cmp::max(width, height);
+            let larger = if max >= 2_u32.pow(14) { 2_u32.pow(14) } else { max };
+            let (smaller, scale) = {
+                let min = std::cmp::min(width, height);
+                if max >= 2_u32.pow(14) {
+                    ((2_u32.pow(14) * min) / max, 2_f32.powf(14.) / max as f32)
+                } else {
+                    (min, 1.)
+                }
+            };
+            if width == max {
+                (egui::vec2(larger as f32, smaller as f32), scale)
+            } else {
+                (egui::vec2(smaller as f32, larger as f32), scale)
+            }
+            // (egui::vec2(svg_tree.size().width(), svg_tree.size().height()), 1.)
+        };
 
+        // create the pixel map to render the svg in
         let mut pixmap =
             resvg::tiny_skia::Pixmap::new(svg_size.x as _, svg_size.y as _)
                 .expect("Could not allocate svg");
         let pixmap_mut = &mut pixmap.as_mut();
-        resvg::render(&svg_tree, Default::default(), pixmap_mut);
+
+        // render the tree inside the pixel map
+        resvg::render(&svg_tree,
+                      // scaling is compleately ignored by the library
+                      tiny_skia::Transform::from_scale(scaling, scaling),
+                      pixmap_mut);
         let pixmap = pixmap_mut.to_owned();
 
+        // create a color image that will be converted to texture for egui to
+        // display (and cache)
         let image = egui::ColorImage::from_rgba_unmultiplied(
             [pixmap.width() as _, pixmap.height() as _],
             pixmap.data(),
