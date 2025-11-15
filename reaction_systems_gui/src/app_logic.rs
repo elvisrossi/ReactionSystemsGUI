@@ -779,7 +779,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_paige_tarkan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
+                    let l = bisimilarity::bisimilarity_paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -817,7 +817,7 @@ fn process_template(
                     };
 
                     let l =
-                        bisimilarity::bisimilarity_paige_tarkan::bisimilarity(
+                        bisimilarity::bisimilarity_paige_tarjan::bisimilarity(
                             &&graph_1, &&graph_2,
                         );
                     let res = BasicValue::String {
@@ -2337,7 +2337,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_paige_tarkan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
+                    let l = bisimilarity::bisimilarity_paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -2375,7 +2375,7 @@ fn process_template(
                     };
 
                     let l =
-                        bisimilarity::bisimilarity_paige_tarkan::bisimilarity(
+                        bisimilarity::bisimilarity_paige_tarjan::bisimilarity(
                             &&graph_1, &&graph_2,
                         );
                     let res = BasicValue::String {
