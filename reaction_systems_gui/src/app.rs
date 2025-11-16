@@ -2277,15 +2277,19 @@ fn get_layout(
                 Default::default(),
             ),
             | BasicValue::DisplayNode { value } =>
-                text.append(&format!("{value:?}"), 0., TextFormat {
-                    ..Default::default()
-                }),
+                text.append(&format!("{}", Formatter::from(translator, &value)),
+                            0., TextFormat {
+                                ..Default::default()
+                            }),
             | BasicValue::DisplayEdge { value } =>
-                text.append(&format!("{value:?}"), 0., Default::default()),
+                text.append(&format!("{}", Formatter::from(translator, &value)),
+                            0., Default::default()),
             | BasicValue::ColorNode { value } =>
-                text.append(&format!("{value:?}"), 0., Default::default()),
+                text.append(&format!("{}", Formatter::from(translator, &value)),
+                            0., Default::default()),
             | BasicValue::ColorEdge { value } =>
-                text.append(&format!("{value:?}"), 0., Default::default()),
+                text.append(&format!("{}", Formatter::from(translator, &value)),
+                            0., Default::default()),
             | BasicValue::Environment { value } => text.append(
                 &format!("{}", Formatter::from(translator, &value)),
                 0.,
