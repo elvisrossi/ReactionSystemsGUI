@@ -285,6 +285,7 @@ pub enum NodeInstruction {
     ColorEdge,
     StringToSvg,
     SaveSvg,
+    SaveRasterization,
 
     // convert basic data types
     ToPositiveSet,
@@ -495,6 +496,7 @@ impl NodeInstruction {
             | Self::Sleep => vec![("seconds", PositiveInt)],
             | Self::StringToSvg => vec![("value", String)],
             | Self::SaveSvg => vec![("path", Path), ("value", Svg)],
+            | Self::SaveRasterization => vec![("path", Path), ("value", Svg)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -592,6 +594,7 @@ impl NodeInstruction {
             | Self::Sleep => vec![("out", PositiveInt)],
             | Self::StringToSvg => vec![("out", Svg)],
             | Self::SaveSvg => vec![],
+            | Self::SaveRasterization => vec![],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -1088,6 +1091,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::Sleep => "Sleep",
             | Self::StringToSvg => "String to SVG",
             | Self::SaveSvg => "Save SVG",
+            | Self::SaveRasterization => "Save Rasterized Image"
         })
     }
 
@@ -1169,7 +1173,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjanNoLabels
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
-            | Self::Sleep | Self::StringToSvg | Self::SaveSvg =>
+            | Self::Sleep | Self::StringToSvg | Self::SaveSvg
+            | Self::SaveRasterization =>
                 vec!["General"],
         }
     }
@@ -1278,6 +1283,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::Sleep,
             NodeInstruction::StringToSvg,
             NodeInstruction::SaveSvg,
+            NodeInstruction::SaveRasterization,
         ]
     }
 }
@@ -1464,6 +1470,12 @@ impl NodeDataTrait for NodeData {
                 }
             },
             | (_, NodeInstruction::SaveSvg) =>
+                if ui.button("Write").clicked() {
+                    responses.push(NodeResponse::User(
+                        CustomResponse::SaveToFile(node_id),
+                    ));
+                },
+            | (_, NodeInstruction::SaveRasterization) =>
                 if ui.button("Write").clicked() {
                     responses.push(NodeResponse::User(
                         CustomResponse::SaveToFile(node_id),

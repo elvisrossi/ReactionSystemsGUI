@@ -709,7 +709,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_kanellakis_smolka::bisimilarity(&&graph_1, &&graph_2);
+                    let l = bisimilarity::kanellakis_smolka::bisimilarity(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -779,7 +779,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
+                    let l = bisimilarity::paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -817,7 +817,7 @@ fn process_template(
                     };
 
                     let l =
-                        bisimilarity::bisimilarity_paige_tarjan::bisimilarity(
+                        bisimilarity::paige_tarjan::bisimilarity(
                             &&graph_1, &&graph_2,
                         );
                     let res = BasicValue::String {
@@ -2300,7 +2300,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_kanellakis_smolka::bisimilarity(&&graph_1, &&graph_2);
+                    let l = bisimilarity::kanellakis_smolka::bisimilarity(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -2337,7 +2337,7 @@ fn process_template(
                         | Err(e) => anyhow::bail!(e),
                     };
 
-                    let l = bisimilarity::bisimilarity_paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
+                    let l = bisimilarity::paige_tarjan::bisimilarity_ignore_labels(&&graph_1, &&graph_2);
                     let res = BasicValue::String {
                         value: format!("{l}"),
                     };
@@ -2375,7 +2375,7 @@ fn process_template(
                     };
 
                     let l =
-                        bisimilarity::bisimilarity_paige_tarjan::bisimilarity(
+                        bisimilarity::paige_tarjan::bisimilarity(
                             &&graph_1, &&graph_2,
                         );
                     let res = BasicValue::String {
@@ -2569,6 +2569,35 @@ fn process_template(
                     BasicValue::Svg { value },
                 ) => {
                     let mut path = path.to_string();
+                    if !path.ends_with(".svg") {
+                        path.push_str(".svg");
+                    }
+                    let svg = match value.svg() {
+                        | Ok(svg) => svg,
+                        | Err(e) => anyhow::bail!(e),
+                    };
+                    *to_ret = Some(BasicValue::SaveBytes { path, value: svg });
+                },
+                | (BasicValue::Path { .. }, _) => {
+                    anyhow::bail!("Not an svg");
+                },
+                | (_, BasicValue::Svg { .. }) => {
+                    anyhow::bail!("Not a path");
+                },
+                | (_, _) => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
+        },
+        | NodeInstruction::SaveRasterization => {
+            let (path, svg) = retrieve_from_cache![2];
+
+            match (path, svg) {
+                | (
+                    BasicValue::Path { value: path },
+                    BasicValue::Svg { value },
+                ) => {
+                    let mut path = path.to_string();
                     if !path.ends_with(".png") {
                         path.push_str(".png");
                     }
@@ -2588,7 +2617,7 @@ fn process_template(
                     anyhow::bail!("Values of wrong type");
                 },
             }
-        },
+        }
     }
     Ok(None)
 }
