@@ -921,40 +921,46 @@ pub struct GlobalState {
 // Display instructions for each of the data types
 impl DataTypeTrait<GlobalState> for BasicDataType {
     fn data_type_color(&self, _user_state: &mut GlobalState) -> egui::Color32 {
+        use eframe::egui::Color32;
         match self {
-            | Self::Error => egui::Color32::RED,
+            | Self::Error =>                  Color32::from_hex("#FC2836"),
 
-            | Self::String => egui::Color32::from_rgb(38, 109, 211),
-            | Self::Path => egui::Color32::from_rgb(109, 211, 38),
-            | Self::System => egui::Color32::from_rgb(238, 207, 109),
-            | Self::PositiveInt => egui::Color32::BLUE,
-            | Self::Symbol => egui::Color32::YELLOW,
-            | Self::Experiment => egui::Color32::GRAY,
-            | Self::Graph => egui::Color32::DARK_GREEN,
-            | Self::AssertFunction => egui::Color32::DARK_GRAY,
-            | Self::DisplayNode => egui::Color32::from_rgb(46, 139, 87),
-            | Self::DisplayEdge => egui::Color32::from_rgb(67, 205, 128),
-            | Self::ColorNode => egui::Color32::from_rgb(78, 238, 148),
-            | Self::ColorEdge => egui::Color32::from_rgb(84, 255, 159),
-            | Self::Environment => egui::Color32::from_rgb(221, 160, 221),
-            | Self::Set => egui::Color32::from_rgb(255, 0, 255),
-            | Self::Context => egui::Color32::from_rgb(238, 130, 238),
-            | Self::Reactions => egui::Color32::from_rgb(218, 112, 214),
-            | Self::PositiveSystem => egui::Color32::from_rgb(238, 109, 153),
-            | Self::Trace => egui::Color32::from_rgb(178, 34, 34),
-            | Self::PositiveTrace => egui::Color32::from_rgb(178, 54, 54),
-            | Self::PositiveSet => egui::Color32::from_rgb(255, 30, 255),
-            | Self::PositiveEnvironment => egui::Color32::from_rgb(10, 20, 50),
-            | Self::PositiveContext => egui::Color32::from_rgb(20, 10, 50),
-            | Self::PositiveReactions => egui::Color32::from_rgb(50, 10, 20),
-            | Self::PositiveGraph => egui::Color32::from_rgb(100, 130, 90),
-            | Self::GroupFunction => egui::Color32::from_rgb(0, 0, 0),
-            | Self::PositiveAssertFunction =>
-                egui::Color32::from_rgb(200, 150, 120),
-            | Self::PositiveGroupFunction =>
-                egui::Color32::from_rgb(150, 120, 200),
-            | Self::Svg => egui::Color32::from_rgb(200, 200, 240),
-        }
+            | Self::String =>                 Color32::from_hex("#0E7AFF"),
+            | Self::Path =>                   Color32::from_hex("#1AC9D8"),
+            | Self::Svg =>                    Color32::from_hex("#86868B"),
+            | Self::PositiveInt =>            Color32::from_hex("#1BD5B6"),
+            | Self::Symbol =>                 Color32::from_hex("#5A61FF"),
+
+            | Self::System =>                 Color32::from_hex("#FECF0A"),
+            | Self::Environment =>            Color32::from_hex("#FFEDA4"),
+            | Self::Set =>                    Color32::from_hex("#FFE370"),
+            | Self::Context =>                Color32::from_hex("#D9AF00"),
+            | Self::Reactions =>              Color32::from_hex("#A78700"),
+
+            | Self::Experiment =>             Color32::from_hex("#FD7E25"),
+
+            | Self::PositiveSystem =>         Color32::from_hex("#A77753"),
+            | Self::PositiveEnvironment =>    Color32::from_hex("#F3D2BA"),
+            | Self::PositiveSet =>            Color32::from_hex("#C99D7D"),
+            | Self::PositiveContext =>        Color32::from_hex("#875733"),
+            | Self::PositiveReactions =>      Color32::from_hex("#683A18"),
+
+            | Self::Trace =>                  Color32::from_hex("#FC577D"),
+            | Self::PositiveTrace =>          Color32::from_hex("#FB003B"),
+
+            | Self::Graph =>                  Color32::from_hex("#2ECC46"),
+            | Self::PositiveGraph =>          Color32::from_hex("#00961A"),
+
+            | Self::DisplayNode =>            Color32::from_hex("#B2F4BD"),
+            | Self::DisplayEdge =>            Color32::from_hex("#81E793"),
+            | Self::ColorNode =>              Color32::from_hex("#3BC553"),
+            | Self::ColorEdge =>              Color32::from_hex("#1CB236"),
+
+            | Self::AssertFunction =>         Color32::from_hex("#CF00EE"),
+            | Self::GroupFunction =>          Color32::from_hex("#750086"),
+            | Self::PositiveAssertFunction => Color32::from_hex("#35C9FD"),
+            | Self::PositiveGroupFunction =>  Color32::from_hex("#02B7F3"),
+        }.expect("Wrong color specification.")
     }
 
     fn name(&self) -> Cow<'_, str> {
@@ -991,7 +997,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
                 Cow::Borrowed("positive assert function"),
             | Self::PositiveGroupFunction =>
                 Cow::Borrowed("positive group function"),
-            | Self::Svg => Cow::Borrowed("Svg"),
+            | Self::Svg => Cow::Borrowed("svg"),
         }
     }
 }
@@ -1009,89 +1015,95 @@ impl NodeTemplateTrait for NodeInstruction {
         _user_state: &mut Self::UserState,
     ) -> Cow<'_, str> {
         Cow::Borrowed(match self {
-            // TODO rename to something more appropriate
             | Self::String => "String",
             | Self::Path => "Path",
-            | Self::ReadPath => "Read a file",
-            | Self::System => "Create a System",
-            | Self::Statistics => "Statistics",
-            | Self::Target => "Target",
-            | Self::Run => "Run",
-            | Self::Loop => "Loop",
-            | Self::Symbol => "Symbol",
-            | Self::Frequency => "Frequency",
-            | Self::LimitFrequency => "Limit Frequency",
-            | Self::Experiment => "Experiment",
-            | Self::FastFrequency => "Fast Frequency",
-            | Self::BisimilarityKanellakisSmolka =>
-                "Bisimilarity Kanellakis & Smolka",
-            | Self::BisimilarityPaigeTarjanNoLabels =>
-                "Bisimilarity Paige & Tarjan (ignore labels)",
-            | Self::BisimilarityPaigeTarjan => "Bisimilarity Paige & Tarjan",
-            | Self::AssertFunction => "Group Edges on Graph",
-            | Self::SystemGraph => "Graph of a System",
+            | Self::ReadPath => "Read file",
             | Self::SaveString => "Save string to file",
+            | Self::Symbol => "Symbol",
+            | Self::Sleep => "Sleep",
+            | Self::StringToSvg => "Dot file to SVG",
+            | Self::SaveSvg => "Save SVG",
+            | Self::SaveRasterization => "Save Rasterized SVG",
+
+            | Self::System => "Create System",
+            | Self::PositiveSystem => "Create Positive System",
+            | Self::ComposeSystem => "Compose System",
+            | Self::PositiveComposeSystem => "Compose Positive System",
+            | Self::DecomposeSystem => "Decompose System",
+            | Self::PositiveDecomposeSystem => "Decompose Positive System",
+
+            | Self::Environment => "Environment",
+            | Self::PositiveEnvironment => "Positive Environment",
+            | Self::Set => "Set",
+            | Self::PositiveSet => "Positive Set",
+            | Self::Context => "Context",
+            | Self::PositiveContext => "Positive Context",
+            | Self::Reactions => "Reactions",
+            | Self::PositiveReactions => "Positive Reactions",
+
+            | Self::ToPositiveEnvironment => "Convert to Positive Environment",
+            | Self::ToPositiveSet => "Convert to Positive Set",
+            | Self::ToPositiveContext => "Convert to Positive Context",
+            | Self::ToPositiveReactions => "Convert to Positive Reactions",
+
+            | Self::Statistics => "Statistics",
+
+            | Self::Target => "Target",
+            | Self::PositiveTarget => "Target of Positive RS",
+            | Self::Run => "Run",
+            | Self::PositiveRun => "Run of Positive RS",
+            | Self::Loop => "Loop",
+            | Self::PositiveLoop => "Loop of Positive RS",
+
+            | Self::Experiment => "Create Experiment",
+
+            | Self::Frequency => "Frequency",
+            | Self::PositiveFrequency => "Frequency of Positive RS",
+            | Self::LimitFrequency => "Limit Frequency",
+            | Self::PositiveLimitFrequency => "Limit Frequency of Positive RS",
+            | Self::FastFrequency => "Fast Frequency",
+            | Self::PositiveFastFrequency => "Fast Frequency of Positive RS",
+
+            | Self::SystemGraph => "Graph System",
+            | Self::PositiveGraph => "Graph Positive System",
+
             | Self::Dot => "Create Dot file",
+            | Self::PositiveDot => "Create Dot file of Positive System",
+            | Self::GraphML => "Create GraphML file",
+            | Self::PositiveGraphML => "Create GraphML file of Positive System",
+
             | Self::DisplayNode => "Display node function",
             | Self::DisplayEdge => "Display edge function",
             | Self::ColorNode => "Color node function",
             | Self::ColorEdge => "Color edge function",
-            | Self::GraphML => "Create GraphML file",
-            | Self::ComposeSystem => "Compose a System",
-            | Self::Environment => "Environment",
-            | Self::Set => "Set",
-            | Self::Context => "Context",
-            | Self::Reactions => "Reactions",
-            | Self::PositiveSystem => "Positive System",
-            | Self::PositiveTarget => "Target",
-            | Self::PositiveRun => "Run",
-            | Self::PositiveLoop => "Loop",
-            | Self::PositiveFrequency => "Frequency",
-            | Self::PositiveLimitFrequency => "Limit Frequency",
-            | Self::PositiveFastFrequency => "Fast Frequency",
+
+            | Self::BisimilarityKanellakisSmolka => "Bisimilarity Kanellakis & Smolka",
+            | Self::BisimilarityPaigeTarjanNoLabels => "Bisimilarity Paige & Tarjan (ignore labels)",
+            | Self::BisimilarityPaigeTarjan => "Bisimilarity Paige & Tarjan",
+            | Self::PositiveBisimilarityKanellakisSmolka => "Bisimilarity Kanellakis & Smolka for Positive RS",
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels => "Paige & Torjan (ignore labels) for Positive RS",
+            | Self::PositiveBisimilarityPaigeTarjan => "Paige & Torjan for Positive RS",
+
+            | Self::AssertFunction => "Create relabeling edge function",
+            | Self::PositiveAssertFunction => "Create relabeling edge function for Positive RS",
+
             | Self::Trace => "Trace",
             | Self::PositiveTrace => "Positive Trace",
             | Self::SliceTrace => "Slice Trace",
             | Self::PositiveSliceTrace => "Positive Slice Trace",
-            | Self::PositiveSet => "Positive Set",
-            | Self::ToPositiveSet => "Convert to Positive Set",
-            | Self::PositiveComposeSystem => "Compose a positive system",
-            | Self::DecomposeSystem => "Decompose a system",
-            | Self::PositiveDecomposeSystem => "Decompose a positive system",
+
             | Self::TraceToString => "Trace to string",
             | Self::PositiveTraceToString => "Positive trace to string",
-            | Self::PositiveEnvironment => "Positive Environment",
-            | Self::PositiveContext => "Positive Context",
-            | Self::PositiveReactions => "Positive Reactions",
-            | Self::ToPositiveContext => "Convert to Positive Context",
-            | Self::ToPositiveEnvironment => "Convert to Positive Environment",
-            | Self::ToPositiveReactions => "Convert to Positive Reactions",
+
             | Self::OverwriteContextEntities => "Overwrite context entities",
             | Self::OverwriteReactionEntities => "Overwirite reaction entities",
-            | Self::PositiveOverwriteContextEntities =>
-                "Overwrite context entities of Positive System",
-            | Self::PositiveOverwriteReactionEntities =>
-                "Overwrite reaction entities of Positive System",
-            | Self::PositiveGraph => "Graph of a Positive System",
-            | Self::PositiveDot => "Create Dot file of Positive System",
-            | Self::PositiveGraphML => "Create GraphML file of Positive System",
-            | Self::GroupFunction => "Grouping Function",
+            | Self::PositiveOverwriteContextEntities => "Overwrite context entities of Positive System",
+            | Self::PositiveOverwriteReactionEntities => "Overwrite reaction entities of Positive System",
+
+            | Self::GroupFunction => "Create Grouping Function",
             | Self::GroupNodes => "Group Nodes",
-            | Self::PositiveAssertFunction =>
-                "Positive Grouping of Edges on Graph",
-            | Self::PositiveGroupFunction =>
-                "Positive Grouping of Nodes on Graph",
-            | Self::PositiveGroupNodes => "Positive Group Nodes",
-            | Self::PositiveBisimilarityKanellakisSmolka =>
-                "Positive Bisimilarity Kanellakis & Smolka",
-            | Self::PositiveBisimilarityPaigeTarjanNoLabels =>
-                "Positive Paige & Torjan (ignore labels)",
-            | Self::PositiveBisimilarityPaigeTarjan =>
-                "Positive Paige & Torjan",
-            | Self::Sleep => "Sleep",
-            | Self::StringToSvg => "String to SVG",
-            | Self::SaveSvg => "Save SVG",
-            | Self::SaveRasterization => "Save Rasterized Image"
+            | Self::PositiveGroupFunction => "Create Grouping Function for Positive System",
+            | Self::PositiveGroupNodes => "Group Nodes of Positive System",
         })
     }
 
