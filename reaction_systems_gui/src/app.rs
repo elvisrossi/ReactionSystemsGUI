@@ -1078,11 +1078,11 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::ColorEdge => "Color edge function",
 
             | Self::BisimilarityKanellakisSmolka => "Bisimilarity Kanellakis & Smolka",
-            | Self::BisimilarityPaigeTarjanNoLabels => "Bisimilarity Paige & Tarjan (ignore labels)",
-            | Self::BisimilarityPaigeTarjan => "Bisimilarity Paige & Tarjan",
             | Self::PositiveBisimilarityKanellakisSmolka => "Bisimilarity Kanellakis & Smolka for Positive RS",
-            | Self::PositiveBisimilarityPaigeTarjanNoLabels => "Paige & Torjan (ignore labels) for Positive RS",
-            | Self::PositiveBisimilarityPaigeTarjan => "Paige & Torjan for Positive RS",
+            | Self::BisimilarityPaigeTarjan => "Bisimilarity Paige & Tarjan",
+            | Self::PositiveBisimilarityPaigeTarjan => "Bisimilarity Paige & Torjan for Positive RS",
+            | Self::BisimilarityPaigeTarjanNoLabels => "Bisimilarity Paige & Tarjan (ignore labels)",
+            | Self::PositiveBisimilarityPaigeTarjanNoLabels => "Bisimilarity Paige & Torjan (ignore labels) for Positive RS",
 
             | Self::AssertFunction => "Create relabeling edge function",
             | Self::PositiveAssertFunction => "Create relabeling edge function for Positive RS",
