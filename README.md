@@ -28,7 +28,7 @@ A simple script is provided to check for errors during development at [`./reacti
 
 In order to format the code in a uniform way run `cargo +nightly fmt`.
 
-To run the program use `cargo r`; to run the release build use `cargo r --relase`.
+To run the program use `cargo r`; to run the release build use `cargo r --release`.
 
 ## Native Application
 

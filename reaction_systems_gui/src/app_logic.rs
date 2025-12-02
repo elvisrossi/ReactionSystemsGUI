@@ -109,7 +109,9 @@ fn generate_to_evaluate(
         let mut input_hashes = vec![];
 
         match graph[n_id].user_data.template {
-            | NodeInstruction::SaveString | NodeInstruction::SaveSvg => {
+            | NodeInstruction::SaveString |
+            NodeInstruction::SaveSvg |
+            NodeInstruction::SaveRasterization => {
                 res.push(n_id);
                 invalid_ids.insert(n_id);
                 outputs_cache.invalidate_outputs(graph, n_id);

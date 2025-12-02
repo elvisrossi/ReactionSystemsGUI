@@ -26,6 +26,9 @@ pub(crate) struct Svg {
 
 impl Svg {
     pub(crate) fn parse_dot_string(dot_str: &str) -> Result<Svg, String> {
+        if dot_str.is_empty() {
+            return Err("Dot string is empty".into());
+        }
         let mut fontdb = fontdb::Database::new();
         fontdb.load_system_fonts();
 
@@ -43,6 +46,9 @@ impl Svg {
         gb.visit_graph(&g);
         let mut graph = gb.get();
         let mut svg = SVGWriter::new();
+        if graph.num_nodes() == 0 {
+           return Err("No nodes in dot graph".into());
+        }
         graph.do_it(false, false, false, &mut svg);
         // convert svg to string
         let content = svg.finalize();
