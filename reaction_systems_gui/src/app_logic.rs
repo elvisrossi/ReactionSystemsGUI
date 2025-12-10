@@ -2619,6 +2619,89 @@ fn process_template(
                     anyhow::bail!("Values of wrong type");
                 },
             }
+        },
+        | NodeInstruction::ExecuteCommand => {
+            let (command, value) = retrieve_from_cache![2];
+            let hash_inputs = hash_inputs!(command, value);
+
+            match (command, value) {
+                | (
+                    BasicValue::String { value: command },
+                    BasicValue::String { value },
+                ) => {
+                    use std::process::{Command, Stdio};
+                    use std::io::Write;
+
+                    if command.is_empty() {
+                        anyhow::bail!("Empty command");
+                    }
+
+                    // Parse the input into command and arguments
+                    let mut parts = command.split_whitespace();
+                    let command = parts.next().unwrap();
+                    let args: Vec<&str> = parts.collect();
+
+                    // build the command
+                    let mut cmd = Command::new(command);
+                    cmd.args(&args);
+                    cmd.stdin(Stdio::piped());
+                    cmd.stdout(Stdio::piped());
+                    cmd.stderr(Stdio::piped());
+
+                    // execute the command
+                    let child = cmd.spawn();
+
+                    let value = match child {
+                        Ok(mut child) => {
+                            // provide stdin
+                            let mut stdin = match child.stdin.take() {
+                                Some(o) => o,
+                                None => anyhow::bail!("Failed to open stdin")
+                            };
+                            let value = value.clone();
+                            std::thread::spawn(move || {
+                                stdin.write_all(value.as_bytes())
+                                    .expect("Failed to write to stdin");
+                            });
+
+                            match child.wait_with_output() {
+                                Ok(output) => {
+                                    if output.status.success() {
+                                        String::from_utf8_lossy(&output.stdout).to_string()
+                                    } else {
+                                        String::from_utf8_lossy(&output.stderr).to_string()
+                                    }
+                                }
+                                Err(e) => {
+                                    anyhow::bail!("Failed to wait for command \
+                                                   '{}': {}", command, e);
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            anyhow::bail!("Failed to execute command {}: {}",
+                                          command, e);
+                        }
+                    };
+
+                    let ret = BasicValue::String { value };
+
+                    set_cache_output!((
+                        output_names.first().unwrap(),
+                        ret,
+                        hash_inputs
+                    ));
+                },
+                | (BasicValue::String { .. }, _) => {
+                    anyhow::bail!("Not a string");
+                },
+                | (_, BasicValue::String { .. }) => {
+                    anyhow::bail!("Not a string");
+                },
+                | (_, _) => {
+                    anyhow::bail!("Values of wrong type");
+                },
+            }
         }
     }
     Ok(None)

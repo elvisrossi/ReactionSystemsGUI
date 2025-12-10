@@ -263,6 +263,7 @@ pub enum NodeInstruction {
     ReadPath,
     SaveString,
     Sleep,
+    ExecuteCommand,
 
     // create basic data types
     Symbol,
@@ -497,6 +498,7 @@ impl NodeInstruction {
             | Self::StringToSvg => vec![("value", String)],
             | Self::SaveSvg => vec![("path", Path), ("value", Svg)],
             | Self::SaveRasterization => vec![("path", Path), ("value", Svg)],
+            | Self::ExecuteCommand => vec![("command", String), ("value", String)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -595,6 +597,7 @@ impl NodeInstruction {
             | Self::StringToSvg => vec![("out", Svg)],
             | Self::SaveSvg => vec![],
             | Self::SaveRasterization => vec![],
+            | Self::ExecuteCommand => vec![("out", String)],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -1104,6 +1107,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::GroupNodes => "Group Nodes",
             | Self::PositiveGroupFunction => "Create Grouping Function for Positive System",
             | Self::PositiveGroupNodes => "Group Nodes of Positive System",
+            | Self::ExecuteCommand => "Execute Command",
         })
     }
 
@@ -1186,7 +1190,7 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveBisimilarityPaigeTarjan =>
                 vec!["Positive Graph", "Positive Bisimilarity"],
             | Self::Sleep | Self::StringToSvg | Self::SaveSvg
-            | Self::SaveRasterization =>
+            | Self::SaveRasterization | Self::ExecuteCommand =>
                 vec!["General"],
         }
     }
@@ -1296,6 +1300,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::StringToSvg,
             NodeInstruction::SaveSvg,
             NodeInstruction::SaveRasterization,
+            NodeInstruction::ExecuteCommand,
         ]
     }
 }
