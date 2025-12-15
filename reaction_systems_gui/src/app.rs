@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, RwLock};
 
 use eframe::egui::text::LayoutJob;
@@ -1587,6 +1588,8 @@ pub struct AppHandle {
 
     #[cfg(not(target_arch = "wasm32"))]
     app_logic_thread: Option<JoinHandle<anyhow::Result<()>>>,
+
+    app_thread_stop: Arc<AtomicBool>,
 }
 
 #[cfg(feature = "persistence")]
@@ -1935,6 +1938,7 @@ impl eframe::App for AppHandle {
                         .show(|ui| {
                             if ui.button("Clear").clicked() {
                                 self.cache.reset_cache();
+                                self.cached_last_value = None;
                                 ui.close();
                             }
                         });
@@ -1963,6 +1967,7 @@ impl eframe::App for AppHandle {
                     user_state.display_result = true;
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
+                    self.app_thread_stop.store(false, std::sync::atomic::Ordering::Relaxed);
                 },
                 | NodeResponse::User(CustomResponse::ClearActiveNode) => {
                     let mut user_state = self.user_state.write().unwrap();
@@ -1983,17 +1988,23 @@ impl eframe::App for AppHandle {
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
-                | NodeResponse::DisconnectEvent { output, input: _ } => {
-                    self.cache.invalidate_cache(output);
+                | NodeResponse::DisconnectEvent { output: _, input } => {
+                    self.cache.invalidate_outputs(
+                        &self.state.graph,
+                        self.state.graph.get_input(*input).node
+                    );
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
                 | NodeResponse::ConnectEventEnded {
-                    output,
-                    input: _,
+                    output: _,
+                    input,
                     input_hook: _,
                 } => {
-                    self.cache.invalidate_cache(output);
+                    self.cache.invalidate_outputs(
+                        &self.state.graph,
+                        self.state.graph.get_input(*input).node
+                    );
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
@@ -2014,13 +2025,11 @@ impl eframe::App for AppHandle {
             } else {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    // wasm does not support threads :-(
-                    // ---------------------------------------------------------
-                    // did we already start a thread?
                     if self.app_logic_thread.is_none() {
                         let thread_join_handle = {
                             let arc_state = Arc::clone(&self.user_state);
                             let arc_translator = Arc::clone(&self.translator);
+                            let cancel_computation = Arc::clone(&self.app_thread_stop);
                             let ctx = ctx.clone();
                             let graph = self.state.graph.clone();
                             let cache = self.cache.clone();
@@ -2030,6 +2039,7 @@ impl eframe::App for AppHandle {
                                     graph,
                                     &cache,
                                     arc_translator,
+                                    cancel_computation,
                                     &ctx,
                                 )
                             })
@@ -2093,6 +2103,9 @@ impl eframe::App for AppHandle {
 
                 #[cfg(target_arch = "wasm32")]
                 {
+                    // wasm does not support threads :-(
+                    // ---------------------------------------------------------
+                    // did we already start a thread?
                     let err = create_output(
                         Arc::clone(&self.user_state),
                         self.state.graph.clone(),
@@ -2145,6 +2158,14 @@ impl eframe::App for AppHandle {
                     ui.vertical_centered(|ui| {
                         egui::widgets::Spinner::new().ui(ui);
                     });
+                    ui.separator();
+                    ui.vertical_centered(|ui| {
+                        if self.app_thread_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                            ui.label("Stopping computation");
+                        } else if ui.button("Interrupt Computation").clicked() {
+                            self.app_thread_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    });
                 });
             } else {
                 window.show(ctx, |ui| {
@@ -2164,6 +2185,7 @@ fn create_output(
     graph: Graph<NodeData, BasicDataType, BasicValue>,
     cache: &OutputsCache,
     translator: Arc<Mutex<rsprocess::translator::Translator>>,
+    cancel_computation: Arc<AtomicBool>,
     ctx: &egui::Context,
 ) -> anyhow::Result<()> {
     let (save_node, active_node) = {
@@ -2178,6 +2200,7 @@ fn create_output(
                 node,
                 cache,
                 Arc::clone(&translator),
+                Arc::clone(&cancel_computation),
                 ctx,
             )?;
             let mut user_state = user_state.write().unwrap();
@@ -2189,6 +2212,7 @@ fn create_output(
                 node,
                 cache,
                 Arc::clone(&translator),
+                Arc::clone(&cancel_computation),
                 ctx,
             )?;
         },

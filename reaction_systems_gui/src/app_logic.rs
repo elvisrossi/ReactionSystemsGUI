@@ -1,4 +1,5 @@
 use std::collections::{HashSet, VecDeque};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use egui_node_graph2::*;
@@ -20,6 +21,7 @@ pub fn evaluate_node(
     node_id: NodeId,
     outputs_cache: &OutputsCache,
     translator: Arc<Mutex<rsprocess::translator::Translator>>,
+    cancel_computation: Arc<AtomicBool>,
     ctx: &eframe::egui::Context,
 ) -> anyhow::Result<()> {
     // generates list of nodes to evaluate and invalidates cache of those nodes
@@ -37,6 +39,11 @@ pub fn evaluate_node(
     // for each node to evaluate (in the correct order) finds the output and
     // populates the cache
     for node_id in to_evaluate {
+        // return early if someone asked
+        if cancel_computation.load(std::sync::atomic::Ordering::Acquire) {
+            anyhow::bail!("Computation Interrupted");
+        }
+
         let node = &graph[node_id];
         let outputs = graph[node_id].user_data.template.output();
         let output_names =
