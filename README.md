@@ -105,3 +105,13 @@ To run locally serve the files in the `reaction_systems_gui/docs/` folder with a
 	
 	brew install jq # MacOS
 	```
+
+* Interrupting computations
+
+	Computations are only interrupted at the end of each node execution.
+
+* SVG
+
+	Creating SVG files takes a lot of time for big graphs.
+	
+	Saved SVG files cannot be rendered correctly by Inkscape, but are by Firefox, Chrome or any other browser and can be handled correctly by [`batik-rasterizer`](https://xmlgraphics.apache.org/batik/tools/rasterizer.html). `batik-rasterizer` can convert the generated SVG files into PDF that correctly render inside latex.
