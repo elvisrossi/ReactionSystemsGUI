@@ -308,6 +308,7 @@ pub enum NodeInstruction {
     FastFrequency,
     OverwriteContextEntities,
     OverwriteReactionEntities,
+    ToSingleProducts,
 
     // positive system instructions
     PositiveSystem,
@@ -500,6 +501,7 @@ impl NodeInstruction {
             | Self::SaveSvg => vec![("path", Path), ("value", Svg)],
             | Self::SaveRasterization => vec![("path", Path), ("value", Svg)],
             | Self::ExecuteCommand => vec![("command", String), ("value", String)],
+            | Self::ToSingleProducts => vec![("sys", System)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -599,6 +601,7 @@ impl NodeInstruction {
             | Self::SaveSvg => vec![],
             | Self::SaveRasterization => vec![],
             | Self::ExecuteCommand => vec![("out", String)],
+            | Self::ToSingleProducts => vec![("out", System)],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -1109,6 +1112,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::PositiveGroupFunction => "Create Grouping Function for Positive System",
             | Self::PositiveGroupNodes => "Group Nodes of Positive System",
             | Self::ExecuteCommand => "Execute Command",
+
+            | Self::ToSingleProducts => "Convert to Single Products",
         })
     }
 
@@ -1136,7 +1141,8 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::Reactions
             | Self::DecomposeSystem
             | Self::OverwriteContextEntities
-            | Self::OverwriteReactionEntities => vec!["System"],
+            | Self::OverwriteReactionEntities
+            | Self::ToSingleProducts => vec!["System"],
             | Self::Frequency | Self::LimitFrequency | Self::FastFrequency =>
                 vec!["System", "Frequency"],
             | Self::Experiment => vec!["Frequency", "Positive Frequency"],
@@ -1302,6 +1308,7 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::SaveSvg,
             NodeInstruction::SaveRasterization,
             NodeInstruction::ExecuteCommand,
+            NodeInstruction::ToSingleProducts,
         ]
     }
 }
@@ -1989,10 +1996,12 @@ impl eframe::App for AppHandle {
                     self.cached_last_value = None;
                 },
                 | NodeResponse::DisconnectEvent { output: _, input } => {
-                    self.cache.invalidate_outputs(
-                        &self.state.graph,
-                        self.state.graph.get_input(*input).node
-                    );
+                    if let Some(i) = self.state.graph.try_get_input(*input) {
+                        self.cache.invalidate_outputs(
+                            &self.state.graph,
+                            i.node
+                        );
+                    }
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
                 },
@@ -2007,6 +2016,11 @@ impl eframe::App for AppHandle {
                     );
                     self.cache.invalidate_last_state();
                     self.cached_last_value = None;
+                },
+                | NodeResponse::DeleteNodeFull { node_id: _, node } => {
+                    for (_, output_id) in node.outputs.iter() {
+                        self.cache.invalidate_cache(output_id);
+                    }
                 },
                 | _ => {},
             }

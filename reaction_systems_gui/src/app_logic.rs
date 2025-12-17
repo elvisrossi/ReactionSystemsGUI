@@ -2709,7 +2709,24 @@ fn process_template(
                     anyhow::bail!("Values of wrong type");
                 },
             }
-        }
+        },
+        | NodeInstruction::ToSingleProducts => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::System { value } = s {
+                let res = BasicValue::System {
+                    value: value.to_single_products(),
+                };
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not a system");
+            }
+        },
     }
     Ok(None)
 }
