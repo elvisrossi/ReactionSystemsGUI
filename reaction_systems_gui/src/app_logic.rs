@@ -2727,6 +2727,72 @@ fn process_template(
                 anyhow::bail!("Not a system");
             }
         },
+        | NodeInstruction::BooleanNetwork => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::String { value } = s {
+                let res = grammar_separated::boolean::BooleanNetworkParser::new()
+                    .parse(&mut translator.lock().unwrap(), &value);
+
+                let value = match res {
+                    | Ok(s) => s,
+                    | Err(parse_error) => {
+                        return Ok(Some(BasicValue::Error {
+                            value: helper::reformat_error(
+                                parse_error,
+                                &value,
+                                ctx,
+                            ),
+                        }));
+                    },
+                };
+
+                let res = BasicValue::BooleanNetwork { value };
+
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not a string");
+            }
+        },
+        | NodeInstruction::BNtoRS => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::BooleanNetwork { value } = s {
+                let res = BasicValue::System {
+                    value: value.into(),
+                };
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not a boolean network");
+            }
+        },
+        | NodeInstruction::BNtoPositiveRS => {
+            let s = retrieve_from_cache![1];
+            let hash_inputs = hash_inputs!(s);
+
+            if let BasicValue::BooleanNetwork { value } = s {
+                let res = BasicValue::PositiveSystem {
+                    value: value.into(),
+                };
+                set_cache_output!((
+                    output_names.first().unwrap(),
+                    res,
+                    hash_inputs
+                ));
+            } else {
+                anyhow::bail!("Not a boolean network");
+            }
+        },
     }
     Ok(None)
 }

@@ -65,6 +65,7 @@ pub enum BasicDataType {
     PositiveAssertFunction,
     PositiveGroupFunction,
     Svg,
+    BooleanNetwork,
 }
 
 /// Should reflect `BasicDataType`'s values, holding the data that will be
@@ -180,6 +181,9 @@ pub enum BasicValue {
     Svg {
         value: super::svg::Svg,
     },
+    BooleanNetwork {
+        value: rsprocess::boolean::BooleanNetwork,
+    },
 }
 
 impl Hash for BasicValue {
@@ -222,7 +226,8 @@ impl Hash for BasicValue {
             PositiveReactions,
             PositiveAssertFunction,
             PositiveGroupFunction,
-            Svg
+            Svg,
+            BooleanNetwork
         );
 
         match self {
@@ -350,6 +355,11 @@ pub enum NodeInstruction {
     PositiveTrace,
     PositiveSliceTrace,
     PositiveTraceToString,
+
+    // BooleanNetworks
+    BooleanNetwork,
+    BNtoRS,
+    BNtoPositiveRS,
 }
 
 impl NodeInstruction {
@@ -502,6 +512,9 @@ impl NodeInstruction {
             | Self::SaveRasterization => vec![("path", Path), ("value", Svg)],
             | Self::ExecuteCommand => vec![("command", String), ("value", String)],
             | Self::ToSingleProducts => vec![("sys", System)],
+            | Self::BooleanNetwork => vec![("value", String)],
+            | Self::BNtoRS => vec![("value", BooleanNetwork)],
+            | Self::BNtoPositiveRS => vec![("value", BooleanNetwork)],
         }
         .into_iter()
         .map(|e| (e.0.to_string(), e.1))
@@ -602,6 +615,9 @@ impl NodeInstruction {
             | Self::SaveRasterization => vec![],
             | Self::ExecuteCommand => vec![("out", String)],
             | Self::ToSingleProducts => vec![("out", System)],
+            | Self::BooleanNetwork => vec![("out", BooleanNetwork)],
+            | Self::BNtoRS => vec![("out", System)],
+            | Self::BNtoPositiveRS => vec![("out", PositiveSystem)],
         };
         res.into_iter()
             .map(|res| (res.0.to_string(), res.1))
@@ -706,6 +722,9 @@ impl NodeInstruction {
                 assert::positive_grouping::PositiveAssert::default()
             ),
             | BasicDataType::Svg => helper!(Svg, super::svg::Svg::default()),
+            | BasicDataType::BooleanNetwork =>
+                helper!(BooleanNetwork,
+                        rsprocess::boolean::BooleanNetwork::default())
         }
     }
 
@@ -762,6 +781,7 @@ impl NodeInstruction {
             | BasicDataType::PositiveGroupFunction =>
                 helper!(PositiveGroupFunction),
             | BasicDataType::Svg => helper!(Svg),
+            | BasicDataType::BooleanNetwork => helper!(BooleanNetwork),
         }
     }
 }
@@ -967,6 +987,8 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::GroupFunction =>          Color32::from_hex("#750086"),
             | Self::PositiveAssertFunction => Color32::from_hex("#35C9FD"),
             | Self::PositiveGroupFunction =>  Color32::from_hex("#02B7F3"),
+
+            | Self::BooleanNetwork =>         Color32::from_hex("#9437FF"),
         }.expect("Wrong color specification.")
     }
 
@@ -1005,6 +1027,7 @@ impl DataTypeTrait<GlobalState> for BasicDataType {
             | Self::PositiveGroupFunction =>
                 Cow::Borrowed("positive group function"),
             | Self::Svg => Cow::Borrowed("svg"),
+            | Self::BooleanNetwork => Cow::Borrowed("boolean network"),
         }
     }
 }
@@ -1114,6 +1137,9 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::ExecuteCommand => "Execute Command",
 
             | Self::ToSingleProducts => "Convert to Single Products",
+            | Self::BooleanNetwork => "Create Boolean Network",
+            | Self::BNtoRS => "Convert Boolean Network to RS",
+            | Self::BNtoPositiveRS => "Convert Boolean Network to Positive RS",
         })
     }
 
@@ -1199,6 +1225,9 @@ impl NodeTemplateTrait for NodeInstruction {
             | Self::Sleep | Self::StringToSvg | Self::SaveSvg
             | Self::SaveRasterization | Self::ExecuteCommand =>
                 vec!["General"],
+            | Self::BooleanNetwork
+            | Self::BNtoRS
+            | Self::BNtoPositiveRS => vec!["Boolean Network"],
         }
     }
 
@@ -1309,6 +1338,9 @@ impl NodeTemplateIter for AllInstructions {
             NodeInstruction::SaveRasterization,
             NodeInstruction::ExecuteCommand,
             NodeInstruction::ToSingleProducts,
+            NodeInstruction::BooleanNetwork,
+            NodeInstruction::BNtoRS,
+            NodeInstruction::BNtoPositiveRS,
         ]
     }
 }
@@ -1449,6 +1481,9 @@ impl WidgetValueTrait for BasicValue {
                 ui.label(param_name);
             },
             | BasicValue::Svg { value: _ } => {
+                ui.label(param_name);
+            },
+            | BasicValue::BooleanNetwork { value: _ } => {
                 ui.label(param_name);
             },
         }
@@ -2469,6 +2504,11 @@ fn get_layout(
             | BasicValue::Svg { value } => {
                 return WidgetLayout::Image(value.get_texture(ctx));
             },
+            | BasicValue::BooleanNetwork { value } => text.append(
+                &format!("{}", Formatter::from(translator, &value)),
+                0.,
+                Default::default(),
+            ),
         },
         | Err(err) => {
             text.append(&format!("{err:?}"), 0., TextFormat {
