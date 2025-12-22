@@ -836,12 +836,12 @@ impl OutputsCache {
         s.finish()
     }
 
-    pub fn input_hashes(&self, key: &OutputId) -> Option<Vec<u64>> {
+    pub(crate) fn input_hashes(&self, key: &OutputId) -> Option<Vec<u64>> {
         let internals = self.internals.read().unwrap();
         internals.hash_inputs.get(key).map(|el| el.1.to_vec())
     }
 
-    pub fn same_hash_inputs(&self, key: &OutputId, inputs: &[u64]) -> bool {
+    pub(crate) fn same_hash_inputs(&self, key: &OutputId, inputs: &[u64]) -> bool {
         let hash_inputs = inputs.iter().fold(0, |acc, x| acc ^ x);
         let internals = self.internals.read().unwrap();
         internals
@@ -860,7 +860,7 @@ impl OutputsCache {
         internals.hash_inputs.insert(key, (hash_inputs, inputs));
     }
 
-    pub fn retrieve_cache_output(
+    pub(crate) fn retrieve_cache_output(
         &self,
         graph: &NodeGraph,
         node_id: NodeId,
@@ -880,12 +880,12 @@ impl OutputsCache {
         }
     }
 
-    pub fn retrieve_output(&self, key: OutputId) -> Option<BasicValue> {
+    pub(crate) fn retrieve_output(&self, key: OutputId) -> Option<BasicValue> {
         let internals = self.internals.read().unwrap();
         internals.values.get(&key).cloned()
     }
 
-    pub fn populate_output(
+    pub(crate) fn populate_output(
         &self,
         graph: &NodeGraph,
         node_id: NodeId,
@@ -898,36 +898,35 @@ impl OutputsCache {
         Ok(())
     }
 
-    pub fn invalidate_cache(&self, key: &OutputId) {
+    pub(crate) fn invalidate_cache(&self, key: &OutputId) {
         let mut internals = self.internals.write().unwrap();
         internals.hash_inputs.remove(key);
         internals.hash_values.remove(key);
         internals.values.remove(key);
     }
 
-    pub fn invalidate_outputs(&self, graph: &NodeGraph, node_id: NodeId) {
+    pub(crate) fn invalidate_outputs(&self, graph: &NodeGraph, node_id: NodeId) {
         for output_id in graph[node_id].output_ids() {
             self.invalidate_cache(&output_id);
         }
     }
 
-    #[allow(dead_code)]
-    pub fn reset_cache(&self) {
+    pub(crate) fn reset_cache(&self) {
         let mut internals = self.internals.write().unwrap();
         *internals = CacheInternals::default();
     }
 
-    pub fn get_last_state(&self) -> Option<BasicValue> {
+    pub(crate) fn get_last_state(&self) -> Option<BasicValue> {
         let internals = self.internals.read().unwrap();
         internals.last_output.clone()
     }
 
-    pub fn invalidate_last_state(&self) {
+    pub(crate) fn invalidate_last_state(&self) {
         let mut internals = self.internals.write().unwrap();
         internals.last_output = None;
     }
 
-    pub fn set_last_state(&self, val: BasicValue) {
+    pub(crate) fn set_last_state(&self, val: BasicValue) {
         let mut internals = self.internals.write().unwrap();
         internals.last_output = Some(val);
     }

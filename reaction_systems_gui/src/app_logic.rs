@@ -105,14 +105,13 @@ fn generate_to_evaluate(
             }
         }
     }
-    dependencies.reverse();
 
     // then keep only the ones that have an input that is different or not
     // cached
     let mut res = vec![];
     let mut invalid_ids = HashSet::new();
 
-    for n_id in dependencies {
+    for &n_id in dependencies.iter().rev() {
         let mut input_hashes = vec![];
 
         match graph[n_id].user_data.template {
